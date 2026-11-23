@@ -1,0 +1,26 @@
+@startuml
+title CU2 - Cadastrar Recepcionista
+
+|Administrador|
+start
+|Sistema|
+:Solicitar nome completo, login e senha;
+repeat
+  repeat
+    |Administrador|
+    :Informar dados e escolher\nsalvar ou desistir;
+    |Sistema|
+    if (Opção escolhida?) then ([salvar])
+    else ([desistir])
+      :Descartar dados;
+      stop
+    endif
+    :Validar campos obrigatórios;
+    backward:Sinalizar campos\n(mantendo os dados);
+  repeat while (Campos válidos?) is ([não]) not ([sim])
+  :Verificar unicidade do login (RN11);
+  backward:Informar "Login já utilizado"\n(mantendo os dados);
+repeat while (Login único?) is ([não]) not ([sim])
+:Gravar Recepcionista e confirmar cadastro;
+stop
+@enduml

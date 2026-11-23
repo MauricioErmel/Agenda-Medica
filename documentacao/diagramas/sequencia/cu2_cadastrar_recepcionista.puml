@@ -1,0 +1,78 @@
+@startuml
+title Diagrama de Sequência - CU2: Cadastrar Recepcionista
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Administrador" as Admin
+participant ":RecepcionistaView" as View
+participant ":RecepcionistaController" as Ctrl
+participant "Usuario" as UsuarioClass <<class>>
+
+Admin -> View : acionarCadastroRecepcionista()
+activate View
+View -> View : exibirFormulario(null)
+activate View
+deactivate View
+View -->> Admin : solicita nome completo, login e senha
+deactivate View
+
+alt Administrador informa dados e solicita salvar
+  Admin -> View : enviarCadastro(nome, login, senha)
+  activate View
+
+  View -> Ctrl : cadastrarRecepcionista(nome, login, senha)
+  activate Ctrl
+
+  alt campos obrigatórios não preenchidos
+    Ctrl -->> View : "Preencha todos os campos obrigatórios"
+  else campos obrigatórios preenchidos
+    Ctrl -> UsuarioClass : existeLogin(login)
+    activate UsuarioClass
+    UsuarioClass -->> Ctrl : existe : boolean
+    deactivate UsuarioClass
+
+    alt existe == true (RN11)
+      Ctrl -->> View : "Login já utilizado"
+    else existe == false
+      create "novaRecepcionista : Usuario" as NovoUsuario
+      Ctrl -->> NovoUsuario : <<create>>
+
+      Ctrl -> NovoUsuario : setNome(nome)
+      activate NovoUsuario
+      deactivate NovoUsuario
+
+      Ctrl -> NovoUsuario : setLogin(login)
+      activate NovoUsuario
+      deactivate NovoUsuario
+
+      Ctrl -> NovoUsuario : setSenha(senha)
+      activate NovoUsuario
+      deactivate NovoUsuario
+
+      Ctrl -> NovoUsuario : setPerfil(Perfil.RECEPCIONISTA)
+      activate NovoUsuario
+      deactivate NovoUsuario
+
+      Ctrl -> NovoUsuario : salvar()
+      activate NovoUsuario
+      NovoUsuario -->> Ctrl : true
+      deactivate NovoUsuario
+
+      Ctrl -->> View : "Recepcionista cadastrada com sucesso!"
+    end
+  end
+  deactivate Ctrl
+
+  View -> View : exibirMensagem(mensagem, tipo)
+  activate View
+  deactivate View
+  View -->> Admin : exibe confirmação ou sinaliza erro mantendo dados
+
+  deactivate View
+else Administrador desiste antes de salvar
+  Admin -> View : cancelar()
+  activate View
+  View -->> Admin : descarta dados e encerra
+  deactivate View
+end
+@enduml

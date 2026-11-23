@@ -1,0 +1,26 @@
+@startuml
+title CU6 - Cadastrar Paciente
+
+|Recepcionista|
+start
+|Sistema|
+:Solicitar CPF, nome completo,\ndata de nascimento, sexo e telefone;
+repeat
+  repeat
+    |Recepcionista|
+    :Informar dados do paciente e\nescolher salvar ou desistir;
+    |Sistema|
+    if (Opção escolhida?) then ([salvar])
+    else ([desistir])
+      :Descartar dados;
+      stop
+    endif
+    :Validar campos obrigatórios, data de nascimento\n(não futura) e CPF (11 dígitos);
+    backward:Sinalizar campos\n(mantendo os dados);
+  repeat while (Dados válidos?) is ([não]) not ([sim])
+  :Verificar unicidade do CPF (RN01);
+  backward:Informar "CPF já cadastrado no sistema",\nmostrando nome e situação do paciente existente;
+repeat while (CPF único?) is ([não]) not ([sim])
+:Gravar paciente como Ativo\ne confirmar cadastro;
+stop
+@enduml

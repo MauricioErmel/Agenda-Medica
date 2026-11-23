@@ -1,0 +1,88 @@
+@startuml
+title Diagrama de Classes (v1) - Ciclo 1 (CU1, CU2, CU3) - consolidado
+skinparam classAttributeIconSize 0
+
+package "View" {
+  class LoginView {
+    + abrirSistema(): void
+    + exibirFormulario(): void
+    + enviarCredenciais(login: String, senha: String): void
+    + exibirErro(mensagem: String): void
+    + exibirMenu(perfil: Perfil): void
+  }
+
+  class RecepcionistaView {
+    + acionarCadastroRecepcionista(): void
+    + acionarEdicaoRecepcionista(): void
+    + selecionarRecepcionista(usuario: Usuario): void
+    + exibirLista(lista: List<Usuario>): void
+    + exibirFormulario(usuario: Usuario): void
+    + enviarCadastro(nome: String, login: String, senha: String): void
+    + enviarEdicao(id: int, nome: String, novaSenha: String): void
+    + cancelar(): void
+    + exibirMensagem(mensagem: String, tipo: String): void
+  }
+}
+
+package "Controller" {
+  class AuthController {
+    + entrar(login: String, senha: String): Usuario
+  }
+
+  class RecepcionistaController {
+    + cadastrarRecepcionista(nome: String, login: String, senha: String): String
+    + listarRecepcionistas(): List<Usuario>
+    + editarRecepcionista(id: int, nome: String, novaSenha: String): String
+  }
+}
+
+package "Model" {
+  enum Perfil {
+    ADMINISTRADOR
+    RECEPCIONISTA
+  }
+
+  class Usuario {
+    - id: int
+    - nome: String
+    - login: String
+    - senha: String
+    - perfil: Perfil
+    + Usuario()
+    + getId(): int
+    + setId(id: int): void
+    + getNome(): String
+    + setNome(nome: String): void
+    + getLogin(): String
+    + setLogin(login: String): void
+    + setSenha(senha: String): void
+    + getPerfil(): Perfil
+    + setPerfil(perfil: Perfil): void
+    + {static} autenticar(login: String, senha: String): Usuario
+    + {static} existeLogin(login: String): boolean
+    + {static} listarRecepcionistas(): List<Usuario>
+    + {static} buscarPorId(id: int): Usuario
+    + salvar(): boolean
+    + to_dict(): Map<String, Object>
+  }
+}
+
+note as Infra
+  Infraestrutura não modelada:
+  - a View (Vue) chama o Controller pela API HTTP
+    (frontend/src/services/api.js e backend/server.py);
+  - o Model acessa o MySQL pela classe Database;
+  - auxiliares internos de Usuario (hash de senha e
+    montagem do objeto) e de RecepcionistaView
+    (carregarLista) não são mostrados.
+end note
+
+LoginView ..> AuthController : usa
+LoginView ..> Usuario : usa
+RecepcionistaView ..> RecepcionistaController : usa
+RecepcionistaView ..> Usuario : exibe
+AuthController ..> Usuario : usa
+RecepcionistaController ..> Usuario : gerencia
+RecepcionistaController ..> Perfil : usa
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Administrador" as Admin
+actor "Recepcionista" as Recep
+
+rectangle "Sistema de Agenda Médica" {
+  usecase "CU1: Entrar no Sistema" as CU1
+  usecase "CU2: Cadastrar Recepcionista" as CU2
+  usecase "CU3: Editar Recepcionista" as CU3
+  usecase "CU4: Cadastrar Médico" as CU4
+  usecase "CU5: Editar Médico" as CU5
+  usecase "CU6: Cadastrar Paciente" as CU6
+  usecase "CU7: Consultar e Editar Paciente" as CU7
+  usecase "CU8: Agendar Consulta" as CU8
+  usecase "CU9: Cancelar Consulta" as CU9
+  usecase "CU10: Enviar Lembrete de Consulta" as CU10
+  usecase "CU11: Registrar Ausência do Médico" as CU11
+}
+
+Admin -- CU1
+Admin -- CU2
+Admin -- CU3
+Admin -- CU4
+Admin -- CU5
+
+CU1 -- Recep
+CU6 -- Recep
+CU7 -- Recep
+CU8 -- Recep
+CU9 -- Recep
+CU10 -- Recep
+CU11 -- Recep
+
+@enduml
