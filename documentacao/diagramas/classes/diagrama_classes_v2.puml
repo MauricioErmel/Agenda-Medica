@@ -1,0 +1,271 @@
+@startuml
+title Diagrama de Classes (v2) - Ciclo 2 (CU1 a CU7)
+skinparam classAttributeIconSize 0
+
+package "View" {
+  class LoginView {
+    + abrirSistema(): void
+    + exibirFormulario(): void
+    + enviarCredenciais(login: String, senha: String): void
+    + exibirErro(mensagem: String): void
+    + exibirMenu(perfil: Perfil): void
+  }
+
+  class RecepcionistaView {
+    + acionarCadastroRecepcionista(): void
+    + acionarEdicaoRecepcionista(): void
+    + selecionarRecepcionista(usuario: Usuario): void
+    + exibirLista(lista: List<Usuario>): void
+    + exibirFormulario(usuario: Usuario): void
+    + enviarCadastro(nome: String, login: String, senha: String): void
+    + enviarEdicao(id: int, nome: String, novaSenha: String): void
+    + cancelar(): void
+    + exibirMensagem(mensagem: String, tipo: String): void
+  }
+
+  class MedicoView {
+    + acionarCadastroMedico(): void
+    + acionarEdicaoMedico(): void
+    + exibirLista(lista: List<Medico>): void
+    + selecionarMedico(medico: Medico): void
+    + exibirFormulario(medico: Medico, especialidades: List<Especialidade>): void
+    + enviarCadastro(nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>): void
+    + enviarEdicao(id: int, nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>, situacao: Situacao): void
+    + solicitarConfirmacao(): void
+    + confirmarEdicao(id: int, nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>, situacao: Situacao): void
+    + cancelar(): void
+    + exibirMensagem(mensagem: String, tipo: String): void
+  }
+
+  class PacienteView {
+    + acionarCadastroPaciente(): void
+    + acionarConsultaPaciente(): void
+    + buscarPacientes(termo: String): void
+    + exibirLista(lista: List<Paciente>): void
+    + selecionarPaciente(paciente: Paciente): void
+    + exibirFormulario(paciente: Paciente): void
+    + enviarCadastro(cpf: String, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String): void
+    + enviarEdicao(id: int, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String, situacao: Situacao): void
+    + solicitarConfirmacao(): void
+    + confirmarEdicao(id: int, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String, situacao: Situacao): void
+    + cancelar(): void
+    + exibirMensagem(mensagem: String, tipo: String): void
+  }
+}
+
+package "Controller" {
+  class AuthController {
+    + entrar(login: String, senha: String): Usuario
+  }
+
+  class RecepcionistaController {
+    + cadastrarRecepcionista(nome: String, login: String, senha: String): String
+    + listarRecepcionistas(): List<Usuario>
+    + editarRecepcionista(id: int, nome: String, novaSenha: String): String
+  }
+
+  class MedicoController {
+    + listarEspecialidades(): List<Especialidade>
+    + cadastrarMedico(nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>): String
+    + listarMedicos(): List<Medico>
+    + buscarMedico(id: int): Medico
+    + validarMedico(id: int, nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>, situacao: Situacao): String
+    + editarMedico(id: int, nome: String, crm: String, ufCrm: String, especialidadeId: int, grades: List<GradeAtendimento>, situacao: Situacao): String
+  }
+
+  class PacienteController {
+    + cadastrarPaciente(cpf: String, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String): String
+    + consultarPacientes(termo: String): List<Paciente>
+    + validarPaciente(id: int, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String, situacao: Situacao): String
+    + editarPaciente(id: int, nome: String, dataNascimento: Date, sexo: Sexo, telefone: String, situacao: Situacao): String
+  }
+}
+
+package "Model" {
+  enum Perfil {
+    ADMINISTRADOR
+    RECEPCIONISTA
+  }
+
+  enum Situacao {
+    ATIVO
+    INATIVO
+  }
+
+  enum Sexo {
+    MASCULINO
+    FEMININO
+    OUTRO
+  }
+
+  enum DiaSemana {
+    SEGUNDA
+    TERCA
+    QUARTA
+    QUINTA
+    SEXTA
+    SABADO
+    DOMINGO
+  }
+
+  class Usuario {
+    - id: int
+    - nome: String
+    - login: String
+    - senha: String
+    - perfil: Perfil
+    + Usuario()
+    + getId(): int
+    + setId(id: int): void
+    + getNome(): String
+    + setNome(nome: String): void
+    + getLogin(): String
+    + setLogin(login: String): void
+    + setSenha(senha: String): void
+    + getPerfil(): Perfil
+    + setPerfil(perfil: Perfil): void
+    + {static} autenticar(login: String, senha: String): Usuario
+    + {static} existeLogin(login: String): boolean
+    + {static} listarRecepcionistas(): List<Usuario>
+    + {static} buscarPorId(id: int): Usuario
+    + salvar(): boolean
+    + to_dict(): Map<String, Object>
+  }
+
+  class Especialidade {
+    - id: int
+    - nome: String
+    + Especialidade()
+    + getId(): int
+    + setId(id: int): void
+    + getNome(): String
+    + setNome(nome: String): void
+    + {static} listarTodas(): List<Especialidade>
+    + {static} buscarPorId(id: int): Especialidade
+    + to_dict(): Map<String, Object>
+  }
+
+  class GradeAtendimento {
+    - id: int
+    - diaSemana: DiaSemana
+    - horaInicial: Time
+    - horaFinal: Time
+    + GradeAtendimento()
+    + getId(): int
+    + setId(id: int): void
+    + getDiaSemana(): DiaSemana
+    + setDiaSemana(diaSemana: DiaSemana): void
+    + getHoraInicial(): Time
+    + setHoraInicial(horaInicial: Time): void
+    + getHoraFinal(): Time
+    + setHoraFinal(horaFinal: Time): void
+    + isHorarioValido(): boolean
+    + to_dict(): Map<String, Object>
+  }
+
+  class Medico {
+    - id: int
+    - nome: String
+    - crm: String
+    - ufCrm: String
+    - situacao: Situacao
+    + Medico()
+    + getId(): int
+    + setId(id: int): void
+    + getNome(): String
+    + setNome(nome: String): void
+    + getCrm(): String
+    + setCrm(crm: String): void
+    + getUfCrm(): String
+    + setUfCrm(ufCrm: String): void
+    + getEspecialidade(): Especialidade
+    + setEspecialidade(especialidade: Especialidade): void
+    + getSituacao(): Situacao
+    + setSituacao(situacao: Situacao): void
+    + getGrades(): List<GradeAtendimento>
+    + setGrades(grades: List<GradeAtendimento>): void
+    + {static} existeCrmUf(crm: String, ufCrm: String, ignorarId: int): boolean
+    + {static} listarTodos(): List<Medico>
+    + {static} buscarPorId(id: int): Medico
+    + salvar(): boolean
+    + to_dict(): Map<String, Object>
+  }
+
+  class Paciente {
+    - id: int
+    - cpf: String
+    - nome: String
+    - dataNascimento: Date
+    - sexo: Sexo
+    - telefone: String
+    - situacao: Situacao
+    + Paciente()
+    + getId(): int
+    + setId(id: int): void
+    + getCpf(): String
+    + setCpf(cpf: String): void
+    + getNome(): String
+    + setNome(nome: String): void
+    + getDataNascimento(): Date
+    + setDataNascimento(dataNascimento: Date): void
+    + getSexo(): Sexo
+    + setSexo(sexo: Sexo): void
+    + getTelefone(): String
+    + setTelefone(telefone: String): void
+    + getSituacao(): Situacao
+    + setSituacao(situacao: Situacao): void
+    + {static} buscarPorCpf(cpf: String): Paciente
+    + {static} buscarPorFiltro(termo: String): List<Paciente>
+    + {static} buscarPorId(id: int): Paciente
+    + salvar(): boolean
+    + to_dict(): Map<String, Object>
+  }
+}
+
+note as Infra
+  Infraestrutura não modelada:
+  - a View (Vue) chama o Controller pela API HTTP
+    (frontend/src/services/api.js e backend/server.py);
+  - o Model acessa o MySQL pela classe Database;
+  - auxiliares internos não são mostrados:
+    • Model: montagem de objeto, hash de senha,
+      normalização de CPF/CRM e conversão de data/hora;
+    • Controller: validação da grade, data de hoje
+      da clínica e rótulo da situação;
+    • View: recarga da lista/consulta, extração da
+      grade do formulário e envio do formulário.
+end note
+
+' Dependências View -> Controller / Model
+LoginView ..> AuthController : usa
+LoginView ..> Usuario : usa
+RecepcionistaView ..> RecepcionistaController : usa
+RecepcionistaView ..> Usuario : exibe
+
+MedicoView ..> MedicoController : usa
+MedicoView ..> Medico : exibe
+MedicoView ..> Especialidade : exibe
+MedicoView ..> GradeAtendimento : usa
+
+PacienteView ..> PacienteController : usa
+PacienteView ..> Paciente : exibe
+
+' Dependências Controller -> Model
+' (enums só aparecem quando o Controller usa um valor fixo, ex.: grava como ATIVO)
+AuthController ..> Usuario : usa
+RecepcionistaController ..> Usuario : gerencia
+RecepcionistaController ..> Perfil : usa
+
+MedicoController ..> Medico : gerencia
+MedicoController ..> Especialidade : consulta
+MedicoController ..> GradeAtendimento : gerencia
+MedicoController ..> Situacao : usa
+
+PacienteController ..> Paciente : gerencia
+PacienteController ..> Situacao : usa
+
+' Associações no Model
+Medico "0..*" --> "-especialidade\n1" Especialidade : possui
+Medico "1" *--> "-grades\n1..7" GradeAtendimento : atende em
+
+@enduml

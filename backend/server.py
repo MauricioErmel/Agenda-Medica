@@ -1,4 +1,4 @@
-"""Servidor HTTP puro (http.server) da API Agenda Médica — Ciclo 1."""
+"""Servidor HTTP puro (http.server) da API Agenda Médica — Ciclos 1 e 2."""
 
 from __future__ import annotations
 
@@ -6,16 +6,23 @@ import json
 import mimetypes
 import re
 import secrets
+from datetime import date, time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, Optional
-from urllib.parse import urlparse
+from typing import Dict, List, Optional
+from urllib.parse import parse_qs, urlparse
 
 import config
 from controller.auth_controller import AuthController
+from controller.medico_controller import MedicoController
+from controller.paciente_controller import PacienteController
 from controller.recepcionista_controller import RecepcionistaController
+from model.dia_semana import DiaSemana
+from model.grade_atendimento import GradeAtendimento
 from model.perfil import Perfil
+from model.sexo import Sexo
+from model.situacao import Situacao
 
 # Sessões ativas em memória: token -> dados públicos do usuário autenticado
 SESSOES: Dict[str, dict] = {}
@@ -23,9 +30,85 @@ SESSOES: Dict[str, dict] = {}
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 
+def _converter_int(valor: object) -> int:
+    if isinstance(valor, bool):
+        return 0
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _converter_situacao(valor: object) -> Optional[Situacao]:
+    if not isinstance(valor, str):
+        return None
+    try:
+        return Situacao(valor.strip().upper())
+    except ValueError:
+        return None
+
+
+def _converter_sexo(valor: object) -> Optional[Sexo]:
+    if not isinstance(valor, str):
+        return None
+    try:
+        return Sexo(valor.strip().upper())
+    except ValueError:
+        return None
+
+
+def _converter_data(valor: object) -> Optional[date]:
+    if not isinstance(valor, str):
+        return None
+    texto = valor.strip()
+    if not texto:
+        return None
+    try:
+        return date.fromisoformat(texto)
+    except ValueError:
+        return None
+
+
+def _converter_hora(valor: object) -> Optional[time]:
+    if not isinstance(valor, str):
+        return None
+    texto = valor.strip()
+    if not texto:
+        return None
+    try:
+        return time.fromisoformat(texto)
+    except ValueError:
+        return None
+
+
+def _converter_grades(bruto: object) -> List[GradeAtendimento]:
+    if not isinstance(bruto, list):
+        return []
+    grades: List[GradeAtendimento] = []
+    for item in bruto:
+        grade = GradeAtendimento()
+        if isinstance(item, dict):
+            dia_str = item.get("diaSemana")
+            if isinstance(dia_str, str):
+                try:
+                    grade.setDiaSemana(DiaSemana(dia_str.strip().upper()))
+                except ValueError:
+                    pass
+            hora_inicial = _converter_hora(item.get("horaInicial"))
+            hora_final = _converter_hora(item.get("horaFinal"))
+            if hora_inicial is not None:
+                grade.setHoraInicial(hora_inicial)
+            if hora_final is not None:
+                grade.setHoraFinal(hora_final)
+        grades.append(grade)
+    return grades
+
+
 class AgendaMedicaHandler(BaseHTTPRequestHandler):
     auth_controller = AuthController()
     recepcionista_controller = RecepcionistaController()
+    medico_controller = MedicoController()
+    paciente_controller = PacienteController()
 
     def _enviar_cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -67,7 +150,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
             return None
         return SESSOES.get(token)
 
-    def _exigir_administrador(self) -> Optional[dict]:
+    def _exigir_perfil(self, perfil_exigido: Perfil, mensagem_negada: str) -> Optional[dict]:
         usuario = self._usuario_autenticado()
         if not usuario:
             self._enviar_json(
@@ -75,13 +158,19 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                 {"sucesso": False, "mensagem": "Usuário não autenticado"},
             )
             return None
-        if usuario.get("perfil") != Perfil.ADMINISTRADOR.value:
+        if usuario.get("perfil") != perfil_exigido.value:
             self._enviar_json(
                 HTTPStatus.FORBIDDEN,
-                {"sucesso": False, "mensagem": "Acesso restrito a Administradores"},
+                {"sucesso": False, "mensagem": mensagem_negada},
             )
             return None
         return usuario
+
+    def _exigir_administrador(self) -> Optional[dict]:
+        return self._exigir_perfil(Perfil.ADMINISTRADOR, "Acesso restrito a Administradores")
+
+    def _exigir_recepcionista(self) -> Optional[dict]:
+        return self._exigir_perfil(Perfil.RECEPCIONISTA, "Acesso restrito a Recepcionistas")
 
     def _servir_estatico(self, caminho: str) -> bool:
         if not DIST_DIR.exists():
@@ -107,7 +196,8 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
-        caminho = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        caminho = parsed.path
 
         if caminho == "/api/health":
             self._enviar_json(
@@ -147,6 +237,78 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                 self._enviar_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {"sucesso": False, "mensagem": f"Erro ao listar recepcionistas: {erro}"},
+                )
+            return
+
+        if caminho == "/api/especialidades":
+            if not self._exigir_administrador():
+                return
+            try:
+                lista = self.medico_controller.listarEspecialidades()
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"especialidades": [e.to_dict() for e in lista]},
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao listar especialidades: {erro}"},
+                )
+            return
+
+        if caminho == "/api/medicos":
+            if not self._exigir_administrador():
+                return
+            try:
+                lista = self.medico_controller.listarMedicos()
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"medicos": [m.to_dict() for m in lista]},
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao listar médicos: {erro}"},
+                )
+            return
+
+        match_medico = re.fullmatch(r"/api/medicos/(\d+)", caminho)
+        if match_medico:
+            if not self._exigir_administrador():
+                return
+            medico_id = int(match_medico.group(1))
+            try:
+                medico = self.medico_controller.buscarMedico(medico_id)
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao buscar médico: {erro}"},
+                )
+                return
+            if medico is None:
+                self._enviar_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"sucesso": False, "mensagem": "Médico não encontrado"},
+                )
+                return
+            self._enviar_json(HTTPStatus.OK, {"medico": medico.to_dict()})
+            return
+
+        if caminho == "/api/pacientes":
+            if not self._exigir_recepcionista():
+                return
+            query = parse_qs(parsed.query)
+            termo = query.get("termo", [""])[0]
+            try:
+                lista = self.paciente_controller.consultarPacientes(termo)
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"pacientes": [p.to_dict() for p in lista]},
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao consultar pacientes: {erro}"},
                 )
             return
 
@@ -232,13 +394,159 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                 self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
             return
 
+        if caminho == "/api/medicos":
+            if not self._exigir_administrador():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            try:
+                mensagem = self.medico_controller.cadastrarMedico(
+                    str(dados.get("nome", "")),
+                    str(dados.get("crm", "")),
+                    str(dados.get("ufCrm", "")),
+                    _converter_int(dados.get("especialidadeId")),
+                    _converter_grades(dados.get("grades")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao cadastrar médico: {erro}"},
+                )
+                return
+
+            if mensagem == "Médico cadastrado com sucesso!":
+                self._enviar_json(HTTPStatus.CREATED, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem == "CRM já cadastrado no sistema":
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_validar_medico = re.fullmatch(r"/api/medicos/(\d+)/validar", caminho)
+        if match_validar_medico:
+            if not self._exigir_administrador():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            medico_id = int(match_validar_medico.group(1))
+            try:
+                erro_validacao = self.medico_controller.validarMedico(
+                    medico_id,
+                    str(dados.get("nome", "")),
+                    str(dados.get("crm", "")),
+                    str(dados.get("ufCrm", "")),
+                    _converter_int(dados.get("especialidadeId")),
+                    _converter_grades(dados.get("grades")),
+                    _converter_situacao(dados.get("situacao")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao validar médico: {erro}"},
+                )
+                return
+
+            if erro_validacao is None:
+                self._enviar_json(HTTPStatus.OK, {"valido": True, "mensagem": None})
+            elif erro_validacao == "CRM já cadastrado no sistema":
+                self._enviar_json(
+                    HTTPStatus.CONFLICT,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
+            else:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
+            return
+
+        if caminho == "/api/pacientes":
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            try:
+                mensagem = self.paciente_controller.cadastrarPaciente(
+                    str(dados.get("cpf", "")),
+                    str(dados.get("nome", "")),
+                    _converter_data(dados.get("dataNascimento")),
+                    _converter_sexo(dados.get("sexo")),
+                    str(dados.get("telefone", "")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao cadastrar paciente: {erro}"},
+                )
+                return
+
+            if mensagem == "Paciente cadastrado com sucesso!":
+                self._enviar_json(HTTPStatus.CREATED, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem.startswith("CPF já cadastrado no sistema"):
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_validar_paciente = re.fullmatch(r"/api/pacientes/(\d+)/validar", caminho)
+        if match_validar_paciente:
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            paciente_id = int(match_validar_paciente.group(1))
+            try:
+                erro_validacao = self.paciente_controller.validarPaciente(
+                    paciente_id,
+                    str(dados.get("nome", "")),
+                    _converter_data(dados.get("dataNascimento")),
+                    _converter_sexo(dados.get("sexo")),
+                    str(dados.get("telefone", "")),
+                    _converter_situacao(dados.get("situacao")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao validar paciente: {erro}"},
+                )
+                return
+
+            if erro_validacao is None:
+                self._enviar_json(HTTPStatus.OK, {"valido": True, "mensagem": None})
+            else:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
+            return
+
         self._enviar_json(HTTPStatus.NOT_FOUND, {"mensagem": "Rota não encontrada"})
 
     def do_PUT(self) -> None:
         caminho = urlparse(self.path).path
-        match = re.fullmatch(r"/api/recepcionistas/(\d+)", caminho)
 
-        if match:
+        match_rec = re.fullmatch(r"/api/recepcionistas/(\d+)", caminho)
+        if match_rec:
             if not self._exigir_administrador():
                 return
             dados = self._ler_json()
@@ -249,7 +557,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            recepcionista_id = int(match.group(1))
+            recepcionista_id = int(match_rec.group(1))
             try:
                 mensagem = self.recepcionista_controller.editarRecepcionista(
                     recepcionista_id,
@@ -264,6 +572,79 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                 return
 
             if mensagem == "Recepcionista atualizada com sucesso!":
+                self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_med = re.fullmatch(r"/api/medicos/(\d+)", caminho)
+        if match_med:
+            if not self._exigir_administrador():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+
+            medico_id = int(match_med.group(1))
+            try:
+                mensagem = self.medico_controller.editarMedico(
+                    medico_id,
+                    str(dados.get("nome", "")),
+                    str(dados.get("crm", "")),
+                    str(dados.get("ufCrm", "")),
+                    _converter_int(dados.get("especialidadeId")),
+                    _converter_grades(dados.get("grades")),
+                    _converter_situacao(dados.get("situacao")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao editar médico: {erro}"},
+                )
+                return
+
+            if mensagem == "Médico atualizado com sucesso!":
+                self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem == "CRM já cadastrado no sistema":
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_pac = re.fullmatch(r"/api/pacientes/(\d+)", caminho)
+        if match_pac:
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+
+            paciente_id = int(match_pac.group(1))
+            try:
+                mensagem = self.paciente_controller.editarPaciente(
+                    paciente_id,
+                    str(dados.get("nome", "")),
+                    _converter_data(dados.get("dataNascimento")),
+                    _converter_sexo(dados.get("sexo")),
+                    str(dados.get("telefone", "")),
+                    _converter_situacao(dados.get("situacao")),
+                )
+            except Exception as erro:
+                self._enviar_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"sucesso": False, "mensagem": f"Erro ao editar paciente: {erro}"},
+                )
+                return
+
+            if mensagem == "Dados do paciente atualizados com sucesso!":
                 self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
             else:
                 self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})

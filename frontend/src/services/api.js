@@ -117,3 +117,122 @@ export const RecepcionistaControllerApi = {
     }
   },
 }
+
+export const MedicoControllerApi = {
+  async listarEspecialidades() {
+    const res = await requisitar('/api/especialidades', { method: 'GET' })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.especialidades || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível carregar as especialidades.',
+    }
+  },
+
+  async listarMedicos() {
+    const res = await requisitar('/api/medicos', { method: 'GET' })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.medicos || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível carregar os médicos.',
+    }
+  },
+
+  async buscarMedico(id) {
+    const res = await requisitar(`/api/medicos/${id}`, { method: 'GET' })
+    if (res.ok && res.dados.medico) {
+      return { ok: true, medico: res.dados.medico, mensagem: null }
+    }
+    return {
+      ok: false,
+      medico: null,
+      mensagem: res.dados.mensagem || 'Não foi possível carregar os dados do médico.',
+    }
+  },
+
+  async cadastrarMedico(nome, crm, ufCrm, especialidadeId, grades) {
+    const res = await requisitar('/api/medicos', {
+      method: 'POST',
+      body: JSON.stringify({ nome, crm, ufCrm, especialidadeId, grades }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao cadastrar médico.',
+    }
+  },
+
+  async validarMedico(id, nome, crm, ufCrm, especialidadeId, grades, situacao) {
+    const res = await requisitar(`/api/medicos/${id}/validar`, {
+      method: 'POST',
+      body: JSON.stringify({ nome, crm, ufCrm, especialidadeId, grades, situacao }),
+    })
+    if (res.ok && res.dados.valido) {
+      return null
+    }
+    return res.dados.mensagem || 'Dados inválidos ou grade incoerente'
+  },
+
+  async editarMedico(id, nome, crm, ufCrm, especialidadeId, grades, situacao) {
+    const res = await requisitar(`/api/medicos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ nome, crm, ufCrm, especialidadeId, grades, situacao }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao atualizar médico.',
+    }
+  },
+}
+
+export const PacienteControllerApi = {
+  async cadastrarPaciente(cpf, nome, dataNascimento, sexo, telefone) {
+    const res = await requisitar('/api/pacientes', {
+      method: 'POST',
+      body: JSON.stringify({ cpf, nome, dataNascimento, sexo, telefone }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao cadastrar paciente.',
+    }
+  },
+
+  async consultarPacientes(termo) {
+    const query = encodeURIComponent(termo || '')
+    const res = await requisitar(`/api/pacientes?termo=${query}`, { method: 'GET' })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.pacientes || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível consultar pacientes.',
+    }
+  },
+
+  async validarPaciente(id, nome, dataNascimento, sexo, telefone, situacao) {
+    const res = await requisitar(`/api/pacientes/${id}/validar`, {
+      method: 'POST',
+      body: JSON.stringify({ nome, dataNascimento, sexo, telefone, situacao }),
+    })
+    if (res.ok && res.dados.valido) {
+      return null
+    }
+    return res.dados.mensagem || 'Dados inválidos'
+  },
+
+  async editarPaciente(id, nome, dataNascimento, sexo, telefone, situacao) {
+    const res = await requisitar(`/api/pacientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ nome, dataNascimento, sexo, telefone, situacao }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao atualizar paciente.',
+    }
+  },
+}
