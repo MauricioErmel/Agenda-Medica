@@ -1,0 +1,86 @@
+@startuml
+title Diagrama de Sequência - UC3: Editar Recepcionista
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Administrador" as Admin
+participant ":RecepcionistaView" as View
+participant ":RecepcionistaController" as Ctrl
+participant "Usuario" as UsuarioClass <<class>>
+participant "recepcionista : Usuario" as RecObj
+
+Admin -> View : acionarEdicaoRecepcionista()
+activate View
+
+View -> Ctrl : listarRecepcionistas()
+activate Ctrl
+
+Ctrl -> UsuarioClass : listarRecepcionistas()
+activate UsuarioClass
+UsuarioClass -->> Ctrl : lista : List<Usuario>
+deactivate UsuarioClass
+
+Ctrl -->> View : lista
+deactivate Ctrl
+
+View -> View : exibirLista(lista)
+activate View
+deactivate View
+View -->> Admin : lista Recepcionistas (nome e login)
+deactivate View
+
+Admin -> View : selecionarRecepcionista(usuario)
+activate View
+View -> View : exibirFormulario(usuario)
+activate View
+deactivate View
+View -->> Admin : exibe dados atuais
+deactivate View
+
+alt Administrador altera dados e solicita salvar
+  Admin -> View : enviarEdicao(id, nome, novaSenha)
+  activate View
+
+  View -> Ctrl : editarRecepcionista(id, nome, novaSenha)
+  activate Ctrl
+
+  alt dados inválidos (ex: nome vazio)
+    Ctrl -->> View : "Dados inválidos"
+  else dados válidos
+    Ctrl -> UsuarioClass : buscarPorId(id)
+    activate UsuarioClass
+    UsuarioClass -->> Ctrl : recepcionista : Usuario
+    deactivate UsuarioClass
+
+    Ctrl -> RecObj : setNome(nome)
+    activate RecObj
+    deactivate RecObj
+
+    opt novaSenha informada
+      Ctrl -> RecObj : setSenha(novaSenha)
+      activate RecObj
+      deactivate RecObj
+    end
+
+    Ctrl -> RecObj : salvar()
+    activate RecObj
+    RecObj -->> Ctrl : true
+    deactivate RecObj
+
+    Ctrl -->> View : "Recepcionista atualizada com sucesso!"
+  end
+  deactivate Ctrl
+
+  View -> View : exibirMensagem(mensagem, tipo)
+  activate View
+  deactivate View
+  View -->> Admin : exibe confirmação ou sinaliza erro mantendo dados
+
+  deactivate View
+else Administrador desiste antes de salvar
+  Admin -> View : cancelar()
+  activate View
+  View -->> Admin : descarta alterações e encerra
+  deactivate View
+end
+@enduml

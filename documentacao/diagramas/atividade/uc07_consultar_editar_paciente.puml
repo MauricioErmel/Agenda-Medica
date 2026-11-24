@@ -1,0 +1,54 @@
+@startuml
+title UC7 - Consultar e Editar Paciente
+
+|Recepcionista|
+start
+repeat
+  |Recepcionista|
+  :Informar CPF ou parte do nome\nou desistir;
+  |Sistema|
+  if (Opção escolhida?) then ([buscar])
+  else ([desistir])
+    stop
+  endif
+  :Buscar pacientes;
+  backward:Informar "Paciente não localizado";
+repeat while (Paciente encontrado?) is ([não]) not ([sim])
+:Listar pacientes encontrados\n(nome, data de nascimento, CPF e situação);
+|Recepcionista|
+:Selecionar paciente;
+|Sistema|
+:Exibir dados do paciente\n(CPF bloqueado para edição);
+|Recepcionista|
+if (Consultar ou editar?) then ([editar])
+else ([apenas consultar])
+  stop
+endif
+repeat
+  repeat
+    |Recepcionista|
+    :Alterar dados e/ou situação e\nescolher salvar ou desistir;
+    |Sistema|
+    if (Opção escolhida?) then ([salvar])
+    else ([desistir])
+      :Descartar alterações;
+      stop
+    endif
+    :Validar campos obrigatórios;
+    backward:Sinalizar campos\n(mantendo os dados);
+  repeat while (Dados válidos?) is ([não]) not ([sim])
+  :Verificar consultas futuras Agendadas\n(se for inativação - RN08);
+  backward:Informar que é preciso cancelar\nessas consultas antes (UC9);
+repeat while (Alteração permitida (RN08)?) is ([não]) not ([sim])
+:Solicitar confirmação;
+|Recepcionista|
+:Confirmar ou desistir;
+|Sistema|
+if (Alteração confirmada?) then ([sim])
+else ([não])
+  :Descartar alterações;
+  stop
+endif
+:Gravar alterações e confirmar atualização;
+stop
+@enduml

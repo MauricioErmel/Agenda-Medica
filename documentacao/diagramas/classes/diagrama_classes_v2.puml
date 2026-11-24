@@ -1,5 +1,5 @@
 @startuml
-title Diagrama de Classes (v2) - Ciclo 2 (CU1 a CU7)
+title Diagrama de Classes (v2) - Ciclo 2 (UC1 a UC7)
 skinparam classAttributeIconSize 0
 
 package "View" {

@@ -1,27 +1,22 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime
 from typing import List, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
+from model.consulta import Consulta
 from model.paciente import Paciente
 from model.sexo import Sexo
 from model.situacao import Situacao
 
 
 class PacienteController:
-    """Controlador de gestão de pacientes — CU6 e CU7."""
+    """Controlador de gestão de pacientes — UC6 e UC7."""
 
     @staticmethod
     def _hoje_clinica() -> date:
-        try:
-            return datetime.now(ZoneInfo(config.TIMEZONE)).date()
-        except ZoneInfoNotFoundError:
-            if config.TIMEZONE == "America/Sao_Paulo":
-                return datetime.now(timezone(timedelta(hours=-3))).date()
-            return datetime.now().date()
+        return config.agora_clinica().date()
 
     @staticmethod
     def _rotulo_situacao(situacao: Optional[Situacao]) -> str:
@@ -107,8 +102,11 @@ class PacienteController:
         ):
             return "Dados inválidos"
 
-        # Pendência planejada (Ciclo 3): validar RN08 (consultas futuras Agendadas)
-        # ao inativar paciente.
+        if situacao == Situacao.INATIVO:
+            futuras = Consulta.listarFuturasAgendadasPorPaciente(id)
+            if futuras:
+                return "Cancele antes as consultas futuras do paciente (UC9)"
+
         return None
 
     def editarPaciente(

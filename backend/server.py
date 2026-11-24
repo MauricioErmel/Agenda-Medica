@@ -1,4 +1,4 @@
-"""Servidor HTTP puro (http.server) da API Agenda Médica — Ciclos 1 e 2."""
+"""Servidor HTTP puro (http.server) da API Agenda Médica — Ciclos 1, 2, 3 e 4."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import mimetypes
 import re
 import secrets
-from datetime import date, time
+from datetime import date, datetime, time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,10 +14,14 @@ from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 import config
+from controller.ausencia_controller import AusenciaController
 from controller.auth_controller import AuthController
+from controller.consulta_controller import ConsultaController
+from controller.lembrete_controller import LembreteController
 from controller.medico_controller import MedicoController
 from controller.paciente_controller import PacienteController
 from controller.recepcionista_controller import RecepcionistaController
+from model.configuracao_clinica import ConfiguracaoClinica
 from model.dia_semana import DiaSemana
 from model.grade_atendimento import GradeAtendimento
 from model.perfil import Perfil
@@ -81,6 +85,19 @@ def _converter_hora(valor: object) -> Optional[time]:
         return None
 
 
+def _converter_data_hora(valor: object) -> Optional[datetime]:
+    if not isinstance(valor, str):
+        return None
+    texto = valor.strip()
+    if not texto:
+        return None
+    try:
+        dt = datetime.fromisoformat(texto)
+        return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
+    except ValueError:
+        return None
+
+
 def _converter_grades(bruto: object) -> List[GradeAtendimento]:
     if not isinstance(bruto, list):
         return []
@@ -109,6 +126,9 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
     recepcionista_controller = RecepcionistaController()
     medico_controller = MedicoController()
     paciente_controller = PacienteController()
+    consulta_controller = ConsultaController()
+    lembrete_controller = LembreteController()
+    ausencia_controller = AusenciaController()
 
     def _enviar_cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -149,6 +169,14 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
         if not token:
             return None
         return SESSOES.get(token)
+
+    def _enviar_erro_interno(self, contexto: str, erro: Exception) -> None:
+        # O detalhe técnico fica só no console do servidor; o navegador recebe uma mensagem genérica.
+        print(f"[ERRO] {contexto}: {erro!r}")
+        self._enviar_json(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            {"sucesso": False, "mensagem": f"{contexto}. Tente novamente."},
+        )
 
     def _exigir_perfil(self, perfil_exigido: Perfil, mensagem_negada: str) -> Optional[dict]:
         usuario = self._usuario_autenticado()
@@ -200,14 +228,15 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
         caminho = parsed.path
 
         if caminho == "/api/health":
+            config_clinica = ConfiguracaoClinica.obter()
             self._enviar_json(
                 HTTPStatus.OK,
                 {
                     "status": "ok",
                     "clinica": {
-                        "nome": config.CLINICA_NOME,
-                        "telefone": config.CLINICA_TELEFONE,
-                        "duracaoConsultaMinutos": config.CONSULTA_DURACAO_MINUTOS,
+                        "nome": config_clinica.getNomeClinica(),
+                        "telefone": config_clinica.getTelefoneClinica(),
+                        "duracaoConsultaMinutos": config_clinica.getDuracaoConsultaMinutos(),
                     },
                 },
             )
@@ -234,10 +263,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     {"recepcionistas": [u.to_dict() for u in lista]},
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao listar recepcionistas: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao listar recepcionistas", erro)
             return
 
         if caminho == "/api/especialidades":
@@ -250,10 +276,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     {"especialidades": [e.to_dict() for e in lista]},
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao listar especialidades: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao listar especialidades", erro)
             return
 
         if caminho == "/api/medicos":
@@ -266,10 +289,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     {"medicos": [m.to_dict() for m in lista]},
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao listar médicos: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao listar médicos", erro)
             return
 
         match_medico = re.fullmatch(r"/api/medicos/(\d+)", caminho)
@@ -280,10 +300,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
             try:
                 medico = self.medico_controller.buscarMedico(medico_id)
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao buscar médico: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao buscar médico", erro)
                 return
             if medico is None:
                 self._enviar_json(
@@ -306,10 +323,121 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     {"pacientes": [p.to_dict() for p in lista]},
                 )
             except Exception as erro:
+                self._enviar_erro_interno("Erro ao consultar pacientes", erro)
+            return
+
+        match_verificar_pac = re.fullmatch(r"/api/consultas/pacientes/(\d+)/verificar", caminho)
+        if match_verificar_pac:
+            if not self._exigir_recepcionista():
+                return
+            paciente_id = int(match_verificar_pac.group(1))
+            try:
+                erro_paciente = self.consulta_controller.verificarPaciente(paciente_id)
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao verificar paciente", erro)
+                return
+            if erro_paciente is None:
+                self._enviar_json(HTTPStatus.OK, {"ativo": True, "mensagem": None})
+            else:
                 self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao consultar pacientes: {erro}"},
+                    HTTPStatus.BAD_REQUEST,
+                    {"ativo": False, "mensagem": erro_paciente},
                 )
+            return
+
+        if caminho == "/api/consultas/medicos-ativos":
+            if not self._exigir_recepcionista():
+                return
+            try:
+                lista = self.consulta_controller.listarMedicosAtivos()
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"medicos": [m.to_dict() for m in lista]},
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao listar médicos ativos", erro)
+            return
+
+        if caminho == "/api/consultas/horarios-livres":
+            if not self._exigir_recepcionista():
+                return
+            query = parse_qs(parsed.query)
+            medico_id = _converter_int(query.get("medicoId", [""])[0])
+            data_consulta = _converter_data(query.get("data", [""])[0])
+            try:
+                horarios = self.consulta_controller.listarHorariosLivres(medico_id, data_consulta)
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"horarios": [h.strftime("%H:%M") for h in horarios]},
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao listar horários livres", erro)
+            return
+
+        match_futuras_pac = re.fullmatch(r"/api/consultas/paciente/(\d+)/futuras", caminho)
+        if match_futuras_pac:
+            if not self._exigir_recepcionista():
+                return
+            paciente_id = int(match_futuras_pac.group(1))
+            try:
+                lista = self.consulta_controller.listarConsultasFuturasPaciente(paciente_id)
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"consultas": [c.to_dict() for c in lista]},
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao listar consultas do paciente", erro)
+            return
+
+        if caminho == "/api/lembretes/pendentes":
+            if not self._exigir_recepcionista():
+                return
+            try:
+                lista = self.lembrete_controller.listarLembretesPendentes()
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"consultas": [c.to_dict() for c in lista]},
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao listar lembretes pendentes", erro)
+            return
+
+        match_link_whatsapp = re.fullmatch(r"/api/lembretes/(\d+)/link-whatsapp", caminho)
+        if match_link_whatsapp:
+            if not self._exigir_recepcionista():
+                return
+            consulta_id = int(match_link_whatsapp.group(1))
+            try:
+                url = self.lembrete_controller.gerarLinkWhatsApp(consulta_id)
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao gerar link do WhatsApp", erro)
+                return
+            if url is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "sucesso": False,
+                        "url": None,
+                        "mensagem": "Consulta não elegível para lembrete",
+                    },
+                )
+            else:
+                self._enviar_json(HTTPStatus.OK, {"sucesso": True, "url": url})
+            return
+
+        match_ausencias_med = re.fullmatch(r"/api/ausencias/medico/(\d+)/futuras", caminho)
+        if match_ausencias_med:
+            if not self._exigir_recepcionista():
+                return
+            medico_id = int(match_ausencias_med.group(1))
+            try:
+                lista = self.ausencia_controller.listarAusenciasFuturas(medico_id)
+                self._enviar_json(
+                    HTTPStatus.OK,
+                    {"ausencias": [a.to_dict() for a in lista]},
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao listar ausências do médico", erro)
             return
 
         if not caminho.startswith("/api/") and self._servir_estatico(caminho):
@@ -334,10 +462,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     str(dados.get("senha", "")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao autenticar no banco de dados: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao autenticar no banco de dados", erro)
                 return
 
             if usuario is None:
@@ -380,10 +505,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     str(dados.get("senha", "")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao cadastrar recepcionista: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao cadastrar recepcionista", erro)
                 return
 
             if mensagem == "Recepcionista cadastrada com sucesso!":
@@ -413,10 +535,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     _converter_grades(dados.get("grades")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao cadastrar médico: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao cadastrar médico", erro)
                 return
 
             if mensagem == "Médico cadastrado com sucesso!":
@@ -450,15 +569,12 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     _converter_situacao(dados.get("situacao")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao validar médico: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao validar médico", erro)
                 return
 
             if erro_validacao is None:
                 self._enviar_json(HTTPStatus.OK, {"valido": True, "mensagem": None})
-            elif erro_validacao == "CRM já cadastrado no sistema":
+            elif erro_validacao == "CRM já cadastrado no sistema" or erro_validacao.startswith("Cancele antes"):
                 self._enviar_json(
                     HTTPStatus.CONFLICT,
                     {"valido": False, "mensagem": erro_validacao},
@@ -489,10 +605,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     str(dados.get("telefone", "")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao cadastrar paciente: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao cadastrar paciente", erro)
                 return
 
             if mensagem == "Paciente cadastrado com sucesso!":
@@ -525,19 +638,116 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     _converter_situacao(dados.get("situacao")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao validar paciente: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao validar paciente", erro)
                 return
 
             if erro_validacao is None:
                 self._enviar_json(HTTPStatus.OK, {"valido": True, "mensagem": None})
+            elif erro_validacao.startswith("Cancele antes"):
+                self._enviar_json(
+                    HTTPStatus.CONFLICT,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
             else:
                 self._enviar_json(
                     HTTPStatus.BAD_REQUEST,
                     {"valido": False, "mensagem": erro_validacao},
                 )
+            return
+
+        if caminho == "/api/consultas":
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            try:
+                mensagem = self.consulta_controller.agendarConsulta(
+                    _converter_int(dados.get("pacienteId")),
+                    _converter_int(dados.get("medicoId")),
+                    _converter_data_hora(dados.get("dataHora")),
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao agendar consulta", erro)
+                return
+
+            if mensagem.startswith("Consulta agendada com sucesso"):
+                self._enviar_json(HTTPStatus.CREATED, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem in (
+                "Horário indisponível",
+                "Paciente já possui consulta agendada neste horário",
+            ):
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        if caminho == "/api/ausencias/validar":
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            try:
+                erro_validacao = self.ausencia_controller.validarAusencia(
+                    _converter_int(dados.get("medicoId")),
+                    str(dados.get("motivo", "")),
+                    _converter_data(dados.get("dataInicial")),
+                    _converter_data(dados.get("dataFinal")),
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao validar ausência", erro)
+                return
+
+            if erro_validacao is None:
+                self._enviar_json(HTTPStatus.OK, {"valido": True, "mensagem": None})
+            elif erro_validacao.startswith("Existem consultas"):
+                self._enviar_json(
+                    HTTPStatus.CONFLICT,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
+            else:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"valido": False, "mensagem": erro_validacao},
+                )
+            return
+
+        if caminho == "/api/ausencias":
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+            try:
+                mensagem = self.ausencia_controller.registrarAusencia(
+                    _converter_int(dados.get("medicoId")),
+                    str(dados.get("motivo", "")),
+                    _converter_data(dados.get("dataInicial")),
+                    _converter_data(dados.get("dataFinal")),
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao registrar ausência", erro)
+                return
+
+            if mensagem == "Ausência registrada com sucesso!":
+                self._enviar_json(HTTPStatus.CREATED, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem.startswith("Existem consultas"):
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
             return
 
         self._enviar_json(HTTPStatus.NOT_FOUND, {"mensagem": "Rota não encontrada"})
@@ -565,10 +775,7 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     str(dados.get("novaSenha", "")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao editar recepcionista: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao editar recepcionista", erro)
                 return
 
             if mensagem == "Recepcionista atualizada com sucesso!":
@@ -601,15 +808,12 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     _converter_situacao(dados.get("situacao")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao editar médico: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao editar médico", erro)
                 return
 
             if mensagem == "Médico atualizado com sucesso!":
                 self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
-            elif mensagem == "CRM já cadastrado no sistema":
+            elif mensagem == "CRM já cadastrado no sistema" or mensagem.startswith("Cancele antes"):
                 self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
             else:
                 self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
@@ -638,13 +842,57 @@ class AgendaMedicaHandler(BaseHTTPRequestHandler):
                     _converter_situacao(dados.get("situacao")),
                 )
             except Exception as erro:
-                self._enviar_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"sucesso": False, "mensagem": f"Erro ao editar paciente: {erro}"},
-                )
+                self._enviar_erro_interno("Erro ao editar paciente", erro)
                 return
 
             if mensagem == "Dados do paciente atualizados com sucesso!":
+                self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
+            elif mensagem.startswith("Cancele antes"):
+                self._enviar_json(HTTPStatus.CONFLICT, {"sucesso": False, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_cancelar_consulta = re.fullmatch(r"/api/consultas/(\d+)/cancelar", caminho)
+        if match_cancelar_consulta:
+            if not self._exigir_recepcionista():
+                return
+            dados = self._ler_json()
+            if dados is None:
+                self._enviar_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"sucesso": False, "mensagem": "JSON inválido"},
+                )
+                return
+
+            consulta_id = int(match_cancelar_consulta.group(1))
+            try:
+                mensagem = self.consulta_controller.cancelarConsulta(
+                    consulta_id,
+                    str(dados.get("motivo", "")),
+                )
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao cancelar consulta", erro)
+                return
+
+            if mensagem == "Consulta cancelada com sucesso!":
+                self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
+            else:
+                self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})
+            return
+
+        match_confirmar_lembrete = re.fullmatch(r"/api/lembretes/(\d+)/confirmar", caminho)
+        if match_confirmar_lembrete:
+            if not self._exigir_recepcionista():
+                return
+            consulta_id = int(match_confirmar_lembrete.group(1))
+            try:
+                mensagem = self.lembrete_controller.confirmarEnvio(consulta_id)
+            except Exception as erro:
+                self._enviar_erro_interno("Erro ao confirmar envio do lembrete", erro)
+                return
+
+            if mensagem == "Lembrete marcado como enviado!":
                 self._enviar_json(HTTPStatus.OK, {"sucesso": True, "mensagem": mensagem})
             else:
                 self._enviar_json(HTTPStatus.BAD_REQUEST, {"sucesso": False, "mensagem": mensagem})

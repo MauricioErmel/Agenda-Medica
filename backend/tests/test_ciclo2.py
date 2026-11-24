@@ -1,4 +1,4 @@
-"""Testes unitários e de API do Ciclo 2 (CU4, CU5, CU6, CU7) sem dependência do MySQL."""
+"""Testes unitários e de API do Ciclo 2 (UC4, UC5, UC6, UC7) sem dependência do MySQL."""
 
 import sys
 import unittest
@@ -12,6 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from controller.medico_controller import MedicoController
 from controller.paciente_controller import PacienteController
+from model.consulta import Consulta
 from model.dia_semana import DiaSemana
 from model.especialidade import Especialidade
 from model.grade_atendimento import GradeAtendimento
@@ -200,14 +201,28 @@ class TestMedicoControllerCU4CU5(unittest.TestCase):
         mock_existe.assert_called_once_with("54321", "RS", 10)
         self.assertEqual(erro, "CRM já cadastrado no sistema")
 
+    @patch.object(Consulta, "existeFuturaPorMedico", return_value=False)
+    @patch.object(Medico, "buscarPorId")
     @patch.object(Medico, "existeCrmUf", return_value=False)
-    def test_cu5_validar_medico_ok(self, mock_existe: MagicMock) -> None:
+    def test_cu5_validar_medico_ok(
+        self,
+        mock_existe: MagicMock,
+        mock_buscar_med: MagicMock,
+        mock_futura: MagicMock,
+    ) -> None:
+        med = Medico()
+        med.setId(10)
+        med.setGrades(self.grade_ok)
+        mock_buscar_med.return_value = med
+
         erro = self.controller.validarMedico(
             10, "Dr. Carlos", "54321", "RS", 1, self.grade_ok, Situacao.INATIVO
         )
         mock_existe.assert_called_once_with("54321", "RS", 10)
+        mock_futura.assert_called_once_with(10)
         self.assertIsNone(erro)
 
+    @patch.object(Consulta, "existeFuturaPorMedico", return_value=False)
     @patch.object(Medico, "salvar", return_value=True)
     @patch.object(Especialidade, "buscarPorId")
     @patch.object(Medico, "buscarPorId")
@@ -218,6 +233,7 @@ class TestMedicoControllerCU4CU5(unittest.TestCase):
         mock_buscar_med: MagicMock,
         mock_buscar_esp: MagicMock,
         mock_salvar: MagicMock,
+        mock_futura: MagicMock,
     ) -> None:
         med = Medico()
         med.setId(10)
@@ -308,7 +324,8 @@ class TestPacienteControllerCU6CU7(unittest.TestCase):
         mock_filtro.assert_called_once_with("Maria")
         self.assertEqual(len(res), 1)
 
-    def test_cu7_validar_paciente(self) -> None:
+    @patch.object(Consulta, "listarFuturasAgendadasPorPaciente", return_value=[])
+    def test_cu7_validar_paciente(self, mock_futuras: MagicMock) -> None:
         amanha = self.controller._hoje_clinica() + timedelta(days=1)
         self.assertEqual(
             self.controller.validarPaciente(1, "Ana", amanha, Sexo.FEMININO, "5199999", Situacao.ATIVO),
@@ -319,6 +336,7 @@ class TestPacienteControllerCU6CU7(unittest.TestCase):
                 1, "Ana", self.nasc_valido, Sexo.FEMININO, "5199999", Situacao.INATIVO
             )
         )
+        mock_futuras.assert_called_once_with(1)
 
     @patch.object(Paciente, "salvar", return_value=True)
     @patch.object(Paciente, "buscarPorId")
@@ -432,15 +450,6 @@ class TestHttpApiCiclo2(unittest.TestCase):
             self.assertEqual(status, 201)
             self.assertEqual(dados["mensagem"], "Médico cadastrado com sucesso!")
 
-        # Validação antes da confirmação (CU5)
-        payload_edicao = {**payload_medico, "situacao": "INATIVO"}
-        with patch.object(Medico, "existeCrmUf", return_value=False):
-            status, dados = self._req(
-                "POST", "/api/medicos/10/validar", payload_edicao, token=token_admin
-            )
-            self.assertEqual(status, 200)
-            self.assertTrue(dados["valido"])
-
         med_obj = Medico()
         med_obj.setId(10)
         med_obj.setNome("Dr. João")
@@ -450,6 +459,17 @@ class TestHttpApiCiclo2(unittest.TestCase):
         med_obj.setSituacao(Situacao.ATIVO)
         med_obj.setGrades([_criar_grade(DiaSemana.SEGUNDA, time(8, 0), time(12, 0))])
 
+        # Validação antes da confirmação (UC5)
+        payload_edicao = {**payload_medico, "situacao": "INATIVO"}
+        with patch.object(Medico, "existeCrmUf", return_value=False), patch.object(
+            Medico, "buscarPorId", return_value=med_obj
+        ), patch.object(Consulta, "existeFuturaPorMedico", return_value=False):
+            status, dados = self._req(
+                "POST", "/api/medicos/10/validar", payload_edicao, token=token_admin
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(dados["valido"])
+
         with patch.object(Medico, "buscarPorId", return_value=med_obj):
             status, dados = self._req("GET", "/api/medicos/10", token=token_admin)
             self.assertEqual(status, 200)
@@ -457,9 +477,9 @@ class TestHttpApiCiclo2(unittest.TestCase):
 
         with patch.object(Medico, "existeCrmUf", return_value=False), patch.object(
             Medico, "buscarPorId", return_value=med_obj
-        ), patch.object(Especialidade, "buscarPorId", return_value=esp), patch.object(
-            Medico, "salvar", return_value=True
-        ):
+        ), patch.object(Consulta, "existeFuturaPorMedico", return_value=False), patch.object(
+            Especialidade, "buscarPorId", return_value=esp
+        ), patch.object(Medico, "salvar", return_value=True):
             status, dados = self._req("PUT", "/api/medicos/10", payload_edicao, token=token_admin)
             self.assertEqual(status, 200)
             self.assertEqual(dados["mensagem"], "Médico atualizado com sucesso!")
@@ -513,13 +533,16 @@ class TestHttpApiCiclo2(unittest.TestCase):
             "telefone": "(51) 98888-0000",
             "situacao": "INATIVO",
         }
-        status, dados = self._req(
-            "POST", "/api/pacientes/5/validar", payload_edicao, token=token_rec
-        )
-        self.assertEqual(status, 200)
-        self.assertTrue(dados["valido"])
+        with patch.object(Consulta, "listarFuturasAgendadasPorPaciente", return_value=[]):
+            status, dados = self._req(
+                "POST", "/api/pacientes/5/validar", payload_edicao, token=token_rec
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(dados["valido"])
 
-        with patch.object(Paciente, "buscarPorId", return_value=existente), patch.object(
+        with patch.object(
+            Consulta, "listarFuturasAgendadasPorPaciente", return_value=[]
+        ), patch.object(Paciente, "buscarPorId", return_value=existente), patch.object(
             Paciente, "salvar", return_value=True
         ):
             status, dados = self._req("PUT", "/api/pacientes/5", payload_edicao, token=token_rec)

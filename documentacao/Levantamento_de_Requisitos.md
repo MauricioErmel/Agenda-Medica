@@ -25,23 +25,23 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 
 | Nº | Caso de Uso | Ator Principal |
 |----|-------------|----------------|
-| CU1 | Entrar no Sistema | Recepcionista, Administrador |
-| CU2 | Cadastrar Recepcionista | Administrador |
-| CU3 | Editar Recepcionista | Administrador |
-| CU4 | Cadastrar Médico | Administrador |
-| CU5 | Editar Médico | Administrador |
-| CU6 | Cadastrar Paciente | Recepcionista |
-| CU7 | Consultar e Editar Paciente | Recepcionista |
-| CU8 | Agendar Consulta | Recepcionista |
-| CU9 | Cancelar Consulta | Recepcionista |
-| CU10 | Enviar Lembrete de Consulta | Recepcionista |
-| CU11 | Registrar Ausência do Médico | Recepcionista |
+| UC1 | Entrar no Sistema | Recepcionista, Administrador |
+| UC2 | Cadastrar Recepcionista | Administrador |
+| UC3 | Editar Recepcionista | Administrador |
+| UC4 | Cadastrar Médico | Administrador |
+| UC5 | Editar Médico | Administrador |
+| UC6 | Cadastrar Paciente | Recepcionista |
+| UC7 | Consultar e Editar Paciente | Recepcionista |
+| UC8 | Agendar Consulta | Recepcionista |
+| UC9 | Cancelar Consulta | Recepcionista |
+| UC10 | Enviar Lembrete de Consulta | Recepcionista |
+| UC11 | Registrar Ausência do Médico | Recepcionista |
 
 ### 1.4 Glossário
 
-- **Grade de atendimento:** turno de horário (hora inicial e hora final) em que o médico atende em cada dia da semana. Definida pelo Administrador (CU4, CU5). A duração das consultas é padrão da clínica.
+- **Grade de atendimento:** turno de horário (hora inicial e hora final) em que o médico atende em cada dia da semana. Definida pelo Administrador (UC4, UC5). A duração das consultas é padrão da clínica.
 - **Horário:** cada intervalo agendável calculado a partir da grade e da duração padrão da consulta. Não é armazenado; aparece como *livre*, *ocupado* (há consulta *Agendada*) ou *bloqueado* (há ausência na data).
-- **Ausência:** período (data inicial e data final, em dias inteiros) em que o médico não atende. Registrada pela Recepcionista (CU11).
+- **Ausência:** período (data inicial e data final, em dias inteiros) em que o médico não atende. Registrada pela Recepcionista (UC11).
 - **Consulta:** vínculo entre paciente, médico e data/hora. Estados: *Agendada* ou *Cancelada* (consultas com `dataHora < agora` são identificadas por verificação temporal como passadas).
 - **Lembrete:** campo da consulta com valor *Pendente* ou *Enviado*.
 - **Situação:** médicos e pacientes são *Ativos* ou *Inativos*. Registros nunca são excluídos.
@@ -49,7 +49,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 
 ### 1.5 Regras de Negócio
 
-- **RN01:** o CPF do paciente deve conter 11 dígitos e ser único entre todos os pacientes. Um paciente *Inativo* é reativado (CU7), não recadastrado. O CPF não pode ser alterado.
+- **RN01:** o CPF do paciente deve conter 11 dígitos e ser único entre todos os pacientes. Um paciente *Inativo* é reativado (UC7), não recadastrado. O CPF não pode ser alterado.
 - **RN02:** a combinação CRM + UF é única entre todos os médicos.
 - **RN03:** a consulta possui estado *Agendada* ou *Cancelada*. Uma consulta é considerada passada quando `dataHora < agora`. O cancelamento pode registrar um motivo opcional em texto.
 - **RN04:** um horário comporta no máximo uma consulta *Agendada*.
@@ -73,8 +73,8 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - Cobrança, convênios e pagamentos.
 - Lista de espera.
 - Integração por API com o WhatsApp e envio automático de mensagens.
-- Reagendamento como operação única (faz-se CU8 e depois CU9).
-- Cancelamento automático em lote de consultas (consultas afetadas devem ser canceladas antes via CU9).
+- Reagendamento como operação única (faz-se UC8 e depois UC9).
+- Cancelamento automático em lote de consultas (consultas afetadas devem ser canceladas antes via UC9).
 - Registro de comparecimento/falta e prontuário.
 - Acesso de pacientes e médicos.
 - Cadastro e redefinição de senha de administradores (feitos diretamente no banco de dados).
@@ -120,7 +120,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **Partes Interessadas e Interesses:**
   - *Administrador:* dar acesso a novas colaboradoras.
 - **Gatilho:** O Administrador aciona a opção de cadastrar Recepcionista.
-- **Condições Prévias:** O Administrador está autenticado (CU1).
+- **Condições Prévias:** O Administrador está autenticado (UC1).
 - **Condições Posteriores:**
   - **Sucesso:** A Recepcionista está gravada e pode entrar no sistema.
   - **Garantia Mínima:** Nada é gravado em caso de erro ou desistência.
@@ -150,7 +150,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Administrador:* manter os dados da equipe atualizados e redefinir senha quando necessário.
 - **Gatilho:** O Administrador aciona a opção de editar Recepcionista.
 - **Condições Prévias:**
-  - O Administrador está autenticado (CU1).
+  - O Administrador está autenticado (UC1).
   - Existe ao menos uma Recepcionista cadastrada.
 - **Condições Posteriores:**
   - **Sucesso:** As alterações estão gravadas.
@@ -182,10 +182,10 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Recepcionista:* ver os horários do médico para agendar.
 - **Gatilho:** O Administrador aciona a opção de cadastrar médico.
 - **Condições Prévias:**
-  - O Administrador está autenticado (CU1).
+  - O Administrador está autenticado (UC1).
   - Existe ao menos uma especialidade no catálogo.
 - **Condições Posteriores:**
-  - **Sucesso:** O médico está gravado como *Ativo* e seus horários aparecem para agendamento (CU8).
+  - **Sucesso:** O médico está gravado como *Ativo* e seus horários aparecem para agendamento (UC8).
   - **Garantia Mínima:** Nada é gravado em caso de erro ou desistência.
 
 ### Fluxo Principal de Sucesso:
@@ -213,7 +213,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Administrador:* manter o quadro médico atualizado.
 - **Gatilho:** O Administrador aciona a opção de editar médico.
 - **Condições Prévias:**
-  - O Administrador está autenticado (CU1).
+  - O Administrador está autenticado (UC1).
   - Existe ao menos um médico cadastrado.
 - **Condições Posteriores:**
   - **Sucesso:** Os dados do médico estão atualizados.
@@ -235,7 +235,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **5b. CRM + UF já pertence a outro médico:**
   - 5b1. O sistema informa "CRM já cadastrado no sistema" e retorna ao passo 4.
 - **5c. Alteração de grade ou inativação com consultas futuras Agendadas:**
-  - 5c1. O sistema informa que é preciso cancelar as consultas futuras antes (CU9) e retorna ao passo 4.
+  - 5c1. O sistema informa que é preciso cancelar as consultas futuras antes (UC9) e retorna ao passo 4.
 - ***a. Desistência antes do passo 8:**
   - *a1. O sistema descarta as alterações e encerra o caso de uso.
 
@@ -249,7 +249,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **Partes Interessadas e Interesses:**
   - *Recepcionista:* registrar o paciente rapidamente durante o atendimento.
 - **Gatilho:** A Recepcionista aciona a opção de cadastrar paciente.
-- **Condições Prévias:** A Recepcionista está autenticada (CU1).
+- **Condições Prévias:** A Recepcionista está autenticada (UC1).
 - **Condições Posteriores:**
   - **Sucesso:** O paciente está cadastrado como *Ativo* e pode ser agendado.
   - **Garantia Mínima:** Nada é gravado em caso de erro ou desistência.
@@ -280,7 +280,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Recepcionista:* manter contatos atualizados e inativar pacientes que não devem mais ser agendados.
 - **Gatilho:** A Recepcionista aciona a consulta de pacientes.
 - **Condições Prévias:**
-  - A Recepcionista está autenticada (CU1).
+  - A Recepcionista está autenticada (UC1).
   - Existe ao menos um paciente cadastrado.
 - **Condições Posteriores:**
   - **Sucesso:** Os dados foram exibidos e, se alterados, estão gravados.
@@ -305,7 +305,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **6a. Dados inválidos:**
   - 6a1. O sistema sinaliza os campos e retorna ao passo 5 mantendo os dados.
 - **6b. Inativação com consultas futuras Agendadas:**
-  - 6b1. O sistema informa que é preciso cancelar essas consultas antes (CU9) e retorna ao passo 5.
+  - 6b1. O sistema informa que é preciso cancelar essas consultas antes (UC9) e retorna ao passo 5.
 - ***a. Desistência antes do passo 9:**
   - *a1. O sistema descarta as alterações e encerra o caso de uso.
 
@@ -320,7 +320,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Recepcionista:* agendar rapidamente sem choque de horário.
 - **Gatilho:** A Recepcionista aciona a opção de agendar consulta.
 - **Condições Prévias:**
-  - A Recepcionista está autenticada (CU1).
+  - A Recepcionista está autenticada (UC1).
   - Existe ao menos um médico *Ativo*.
 - **Condições Posteriores:**
   - **Sucesso:** Existe uma consulta *Agendada*, com lembrete *Pendente*, e o horário aparece como ocupado.
@@ -358,7 +358,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **Partes Interessadas e Interesses:**
   - *Recepcionista:* liberar o horário e registrar, se desejar, o motivo do cancelamento.
 - **Gatilho:** A Recepcionista aciona a opção de cancelar consulta.
-- **Condições Prévias:** A Recepcionista está autenticada (CU1).
+- **Condições Prévias:** A Recepcionista está autenticada (UC1).
 - **Condições Posteriores:**
   - **Sucesso:** A consulta está *Cancelada* e o horário voltou a ficar livre.
   - **Garantia Mínima:** Sem confirmação, a consulta não muda.
@@ -391,7 +391,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **Partes Interessadas e Interesses:**
   - *Recepcionista:* reduzir faltas com pouco esforço.
 - **Gatilho:** A Recepcionista aciona a lista de lembretes pendentes.
-- **Condições Prévias:** A Recepcionista está autenticada (CU1).
+- **Condições Prévias:** A Recepcionista está autenticada (UC1).
 - **Condições Posteriores:**
   - **Sucesso:** O lembrete da consulta está *Enviado* e a consulta saiu da lista de pendentes.
   - **Garantia Mínima:** Sem confirmação da Recepcionista, o lembrete continua *Pendente*.
@@ -426,7 +426,7 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
   - *Recepcionista:* bloquear a agenda quando o médico avisa que não atenderá.
 - **Gatilho:** O médico comunica uma ausência e a Recepcionista aciona o registro.
 - **Condições Prévias:**
-  - A Recepcionista está autenticada (CU1).
+  - A Recepcionista está autenticada (UC1).
   - Existe ao menos um médico *Ativo*.
 - **Condições Posteriores:**
   - **Sucesso:** A ausência está gravada e os horários das datas do período aparecem bloqueados.
@@ -446,6 +446,6 @@ Sistema que roda no navegador e permite à equipe de uma clínica médica contro
 - **5a. Dados inválidos:**
   - 5a1. O sistema sinaliza o problema e retorna ao passo 4 mantendo os dados.
 - **5b. Existem consultas futuras Agendadas no período:**
-  - 5b1. O sistema informa que é preciso cancelar essas consultas antes (CU9) e retorna ao passo 4.
+  - 5b1. O sistema informa que é preciso cancelar essas consultas antes (UC9) e retorna ao passo 4.
 - ***a. Desistência antes do passo 8:**
   - *a1. O sistema descarta os dados e encerra o caso de uso.

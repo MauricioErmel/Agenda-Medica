@@ -28,7 +28,7 @@ const carregandoFormulario = ref(false)
 const salvando = ref(false)
 const modalConfirmacaoAberto = ref(false)
 
-// Campos do formulário (mantidos em caso de erro conforme CU4 e CU5)
+// Campos do formulário (mantidos em caso de erro conforme UC4 e UC5)
 const formId = ref(null)
 const formNome = ref('')
 const formCrm = ref('')
@@ -108,7 +108,7 @@ async function carregarLista() {
   }
 }
 
-// Métodos alinhados ao Diagrama de Classes (v2) e Diagramas de Sequência (CU4 e CU5)
+// Métodos alinhados ao Diagrama de Classes (v2) e Diagramas de Sequência (UC4 e UC5)
 function exibirMensagem(mensagem, tipo = 'info') {
   mensagemTexto.value = mensagem
   mensagemTipo.value = tipo
@@ -415,7 +415,7 @@ defineExpose({
       <button type="button" class="btn btn-ghost btn-xs" @click="limparMensagem()">Fechar</button>
     </div>
 
-    <!-- Modo Lista (CU5 - passos 1 e 2) -->
+    <!-- Modo Lista (UC5 - passos 1 e 2) -->
     <div v-if="modo === 'lista'" class="card bg-base-100 shadow-sm border border-base-300">
       <div class="card-body p-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -505,7 +505,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Modo Formulário (CU4: Cadastro | CU5: Edição) -->
+    <!-- Modo Formulário (UC4: Cadastro | UC5: Edição) -->
     <div v-else class="card bg-base-100 shadow-sm border border-base-300">
       <div class="card-body p-6 sm:p-8">
         <div class="mb-4">
@@ -672,7 +672,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Modal de Confirmação da Edição (CU5 - passos 6 e 7) -->
+    <!-- Modal de Confirmação da Edição (UC5 - passos 6 e 7) -->
     <dialog class="modal" :class="{ 'modal-open': modalConfirmacaoAberto }">
       <div class="modal-box">
         <h3 class="text-lg font-bold">Confirmar alteração do médico</h3>

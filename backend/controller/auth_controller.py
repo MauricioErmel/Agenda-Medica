@@ -4,7 +4,7 @@ from model.usuario import Usuario
 
 
 class AuthController:
-    """Controlador de autenticação — CU1: Entrar no Sistema."""
+    """Controlador de autenticação — UC1: Entrar no Sistema."""
 
     def entrar(self, login: str, senha: str) -> Optional[Usuario]:
         login_limpo = (login or "").strip()

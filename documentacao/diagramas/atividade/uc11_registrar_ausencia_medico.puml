@@ -1,0 +1,39 @@
+@startuml
+title UC11 - Registrar Ausência do Médico
+
+|Recepcionista|
+start
+|Sistema|
+:Listar médicos Ativos\n(nome, CRM/UF e especialidade);
+|Recepcionista|
+:Selecionar médico;
+|Sistema|
+:Listar ausências futuras já registradas;
+repeat
+  repeat
+    |Recepcionista|
+    :Informar motivo, data inicial e data final\ne escolher prosseguir ou desistir;
+    |Sistema|
+    if (Opção escolhida?) then ([prosseguir])
+    else ([desistir])
+      :Descartar dados;
+      stop
+    endif
+    :Validar motivo e datas (não passadas\ne data final >= data inicial);
+    backward:Sinalizar o problema\n(mantendo os dados);
+  repeat while (Dados válidos?) is ([não]) not ([sim])
+  :Verificar consultas futuras Agendadas\ndo médico no período (RN10);
+  backward:Informar que é preciso cancelar\nessas consultas antes (UC9);
+repeat while (Período sem consultas Agendadas?) is ([não]) not ([sim])
+:Solicitar confirmação;
+|Recepcionista|
+:Confirmar ou desistir;
+|Sistema|
+if (Registro confirmado?) then ([sim])
+else ([não])
+  :Descartar dados;
+  stop
+endif
+:Gravar ausência e confirmar registro;
+stop
+@enduml

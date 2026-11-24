@@ -1,0 +1,209 @@
+@startuml
+title Diagrama de Sequência - UC5: Editar Médico
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Administrador" as Admin
+participant ":MedicoView" as View
+participant ":MedicoController" as Ctrl
+participant "Medico" as MedClass <<class>>
+participant "Especialidade" as EspClass <<class>>
+participant "grade : GradeAtendimento" as Grade
+participant "medico : Medico" as MedObj
+participant "Consulta" as ConsClass <<class>>
+
+Admin -> View : acionarEdicaoMedico()
+activate View
+
+View -> Ctrl : listarMedicos()
+activate Ctrl
+Ctrl -> MedClass : listarTodos()
+activate MedClass
+MedClass -->> Ctrl : lista : List<Medico>
+deactivate MedClass
+Ctrl -->> View : lista
+deactivate Ctrl
+
+View -> View : exibirLista(lista)
+activate View
+deactivate View
+View -->> Admin : lista médicos (incluindo Inativos)
+deactivate View
+
+Admin -> View : selecionarMedico(medico)
+activate View
+
+View -> Ctrl : buscarMedico(id)
+activate Ctrl
+Ctrl -> MedClass : buscarPorId(id)
+activate MedClass
+MedClass -->> Ctrl : medico : Medico
+deactivate MedClass
+Ctrl -->> View : medico (com especialidade e grade)
+deactivate Ctrl
+
+View -> Ctrl : listarEspecialidades()
+activate Ctrl
+Ctrl -> EspClass : listarTodas()
+activate EspClass
+EspClass -->> Ctrl : especialidades : List<Especialidade>
+deactivate EspClass
+Ctrl -->> View : especialidades
+deactivate Ctrl
+
+View -> View : exibirFormulario(medico, especialidades)
+activate View
+deactivate View
+View -->> Admin : exibe dados atuais, especialidade, grade e situação
+deactivate View
+
+alt Administrador altera dados e solicita salvar
+  Admin -> View : enviarEdicao(id, nome, crm, ufCrm, especialidadeId, grades, situacao)
+  activate View
+
+  View -> Ctrl : validarMedico(id, nome, crm, ufCrm, especialidadeId, grades, situacao)
+  activate Ctrl
+
+  loop para cada grade em grades
+    Ctrl -> Grade : isHorarioValido()
+    activate Grade
+    Grade -->> Ctrl : valido : boolean
+    deactivate Grade
+  end
+
+  alt campos obrigatórios vazios, grade vazia ou algum horário inválido
+    Ctrl -->> View : "Dados inválidos ou grade incoerente"
+  else dados válidos
+    Ctrl -> MedClass : existeCrmUf(crm, ufCrm, id)
+    activate MedClass
+    MedClass -->> Ctrl : existe : boolean
+    deactivate MedClass
+
+    alt existe == true (RN02)
+      Ctrl -->> View : "CRM já cadastrado no sistema"
+    else existe == false
+      Ctrl -> MedClass : buscarPorId(id)
+      activate MedClass
+      MedClass -->> Ctrl : medico : Medico
+      deactivate MedClass
+
+      alt medico == null
+        Ctrl -->> View : "Dados inválidos ou grade incoerente"
+      else medico encontrado
+        Ctrl -> MedObj : getGrades()
+        activate MedObj
+        MedObj -->> Ctrl : gradesAtuais : List<GradeAtendimento>
+        deactivate MedObj
+
+        note over Ctrl
+          Compara grades e gradesAtuais por valor
+          (diaSemana, horaInicial e horaFinal).
+        end note
+
+        alt grade alterada ou situacao == INATIVO
+          Ctrl -> ConsClass : existeFuturaPorMedico(id)
+          activate ConsClass
+          ConsClass -->> Ctrl : existeFutura : boolean
+          deactivate ConsClass
+
+          alt existeFutura == true (RN08)
+            Ctrl -->> View : "Cancele antes as consultas futuras do médico (UC9)"
+          else sem consultas futuras
+            Ctrl -->> View : null (sem erros)
+          end
+        else sem alteração de grade nem inativação
+          Ctrl -->> View : null (sem erros)
+        end
+      end
+    end
+  end
+  deactivate Ctrl
+
+  alt validação retornou erro
+    View -> View : exibirMensagem(mensagem, "erro")
+    activate View
+    deactivate View
+    View -->> Admin : sinaliza erro mantendo dados
+    deactivate View
+
+  else validação ok
+    View -> View : solicitarConfirmacao()
+    activate View
+    deactivate View
+    View -->> Admin : solicita confirmação da alteração
+    deactivate View
+
+    alt Administrador confirma
+      Admin -> View : confirmarEdicao(id, nome, crm, ufCrm, especialidadeId, grades, situacao)
+      activate View
+
+      View -> Ctrl : editarMedico(id, nome, crm, ufCrm, especialidadeId, grades, situacao)
+      activate Ctrl
+      note right of Ctrl
+        Revalida com validarMedico(...)
+        antes de gravar (proteção).
+      end note
+
+      Ctrl -> MedClass : buscarPorId(id)
+      activate MedClass
+      MedClass -->> Ctrl : medico : Medico
+      deactivate MedClass
+
+      Ctrl -> EspClass : buscarPorId(especialidadeId)
+      activate EspClass
+      EspClass -->> Ctrl : especialidade : Especialidade
+      deactivate EspClass
+
+      Ctrl -> MedObj : setNome(nome)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : setCrm(crm)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : setUfCrm(ufCrm)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : setEspecialidade(especialidade)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : setGrades(grades)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : setSituacao(situacao)
+      activate MedObj
+      deactivate MedObj
+
+      Ctrl -> MedObj : salvar()
+      activate MedObj
+      MedObj -->> Ctrl : true
+      deactivate MedObj
+
+      Ctrl -->> View : "Médico atualizado com sucesso!"
+      deactivate Ctrl
+
+      View -> View : exibirMensagem(mensagem, "sucesso")
+      activate View
+      deactivate View
+      View -->> Admin : exibe confirmação
+      deactivate View
+
+    else Administrador desiste na confirmação
+      Admin -> View : cancelar()
+      activate View
+      View -->> Admin : descarta alterações e encerra
+      deactivate View
+    end
+  end
+
+else Administrador desiste antes de salvar
+  Admin -> View : cancelar()
+  activate View
+  View -->> Admin : descarta alterações e encerra
+  deactivate View
+end
+@enduml

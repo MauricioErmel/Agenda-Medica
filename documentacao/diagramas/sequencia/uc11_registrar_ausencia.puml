@@ -1,0 +1,175 @@
+@startuml
+title Diagrama de Sequência - UC11: Registrar Ausência do Médico
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Recepcionista" as Rec
+participant ":AusenciaView" as View
+participant ":ConsultaController" as ConsCtrl
+participant ":AusenciaController" as Ctrl
+participant "Medico" as MedClass <<class>>
+participant "medico : Medico" as MedObj
+participant "Ausencia" as AusClass <<class>>
+participant "Consulta" as ConsClass <<class>>
+
+Rec -> View : acionarRegistroAusencia()
+activate View
+
+View -> ConsCtrl : listarMedicosAtivos()
+activate ConsCtrl
+ConsCtrl -> MedClass : listarAtivos()
+activate MedClass
+MedClass -->> ConsCtrl : medicos : List<Medico>
+deactivate MedClass
+ConsCtrl -->> View : medicos
+deactivate ConsCtrl
+
+View -> View : exibirMedicos(medicos)
+activate View
+deactivate View
+View -->> Rec : lista médicos Ativos (nome, CRM/UF e especialidade)
+deactivate View
+
+alt Recepcionista seleciona médico
+  Rec -> View : selecionarMedico(medico)
+  activate View
+
+  View -> Ctrl : listarAusenciasFuturas(medicoId)
+  activate Ctrl
+  Ctrl -> AusClass : listarFuturasPorMedico(medicoId)
+  activate AusClass
+  AusClass -->> Ctrl : ausencias : List<Ausencia>
+  deactivate AusClass
+  Ctrl -->> View : ausencias
+  deactivate Ctrl
+
+  View -> View : exibirAusenciasFuturas(ausencias)
+  activate View
+  deactivate View
+  View -->> Rec : exibe ausências futuras e solicita motivo, dataInicial e dataFinal
+  deactivate View
+
+  alt Recepcionista informa dados e solicita salvar
+    Rec -> View : enviarAusencia(medicoId, motivo, dataInicial, dataFinal)
+    activate View
+
+    View -> Ctrl : validarAusencia(medicoId, motivo, dataInicial, dataFinal)
+    activate Ctrl
+
+    Ctrl -> MedClass : buscarPorId(medicoId)
+    activate MedClass
+    MedClass -->> Ctrl : medico : Medico
+    deactivate MedClass
+
+    opt medico != null
+      Ctrl -> MedObj : getSituacao()
+      activate MedObj
+      MedObj -->> Ctrl : situacao : Situacao
+      deactivate MedObj
+    end
+
+    alt medico == null ou situacao != ATIVO ou motivo vazio ou dataInicial < hoje ou dataFinal < dataInicial (RN06, RN10)
+      Ctrl -->> View : "Dados inválidos para registro de ausência"
+    else dados básicos válidos
+      Ctrl -> ConsClass : existeFuturaPorMedicoNoPeriodo(medicoId, dataInicial, dataFinal)
+      activate ConsClass
+      ConsClass -->> Ctrl : existeConsulta : boolean
+      deactivate ConsClass
+
+      alt existeConsulta == true (RN10)
+        Ctrl -->> View : "Existem consultas futuras agendadas no período; cancele-as antes (UC9)"
+      else sem consultas futuras no período
+        Ctrl -->> View : null (sem erros)
+      end
+    end
+    deactivate Ctrl
+
+    alt erro != null (Extensões 5a / 5b)
+      View -> View : exibirMensagem(erro, "erro")
+      activate View
+      deactivate View
+      View -->> Rec : informa o problema mantendo os dados
+      deactivate View
+    else validação aprovada
+      View -> View : solicitarConfirmacao()
+      activate View
+      deactivate View
+      View -->> Rec : solicita confirmação do registro
+      deactivate View
+
+      alt Recepcionista confirma
+        Rec -> View : confirmarRegistro(medicoId, motivo, dataInicial, dataFinal)
+        activate View
+
+        View -> Ctrl : registrarAusencia(medicoId, motivo, dataInicial, dataFinal)
+        activate Ctrl
+
+        Ctrl -> Ctrl : erro = validarAusencia(medicoId, motivo, dataInicial, dataFinal)
+        activate Ctrl
+        deactivate Ctrl
+
+        note over Ctrl
+          Revalida antes de gravar (RN06, RN10).
+        end note
+
+        alt erro != null
+          Ctrl -->> View : erro
+        else válido
+          Ctrl -> MedClass : buscarPorId(medicoId)
+          activate MedClass
+          MedClass -->> Ctrl : medico : Medico
+          deactivate MedClass
+
+          create "novaAusencia : Ausencia" as NovaAus
+          Ctrl -->> NovaAus : <<create>>
+
+          Ctrl -> NovaAus : setMedico(medico)
+          activate NovaAus
+          deactivate NovaAus
+
+          Ctrl -> NovaAus : setMotivo(motivo)
+          activate NovaAus
+          deactivate NovaAus
+
+          Ctrl -> NovaAus : setDataInicial(dataInicial)
+          activate NovaAus
+          deactivate NovaAus
+
+          Ctrl -> NovaAus : setDataFinal(dataFinal)
+          activate NovaAus
+          deactivate NovaAus
+
+          Ctrl -> NovaAus : salvar()
+          activate NovaAus
+          NovaAus -->> Ctrl : true
+          deactivate NovaAus
+
+          Ctrl -->> View : "Ausência registrada com sucesso!"
+        end
+        deactivate Ctrl
+
+        View -> View : exibirMensagem(mensagem, tipo)
+        activate View
+        deactivate View
+        View -->> Rec : exibe confirmação ou informa o erro
+        deactivate View
+      else Recepcionista desiste antes de confirmar
+        Rec -> View : cancelar()
+        activate View
+        View -->> Rec : descarta dados e encerra
+        deactivate View
+      end
+    end
+  else Recepcionista desiste antes de enviar
+    Rec -> View : cancelar()
+    activate View
+    View -->> Rec : descarta dados e encerra
+    deactivate View
+  end
+else Recepcionista desiste antes de selecionar médico
+  Rec -> View : cancelar()
+  activate View
+  View -->> Rec : encerra sem registrar
+  deactivate View
+end
+@enduml

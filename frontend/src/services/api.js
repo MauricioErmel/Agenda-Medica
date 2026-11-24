@@ -236,3 +236,157 @@ export const PacienteControllerApi = {
     }
   },
 }
+
+export const ConsultaControllerApi = {
+  async verificarPaciente(pacienteId) {
+    const res = await requisitar(`/api/consultas/pacientes/${pacienteId}/verificar`, {
+      method: 'GET',
+    })
+    if (res.ok && res.dados.ativo) {
+      return null
+    }
+    return res.dados.mensagem || 'Pacientes inativos não podem ser agendados'
+  },
+
+  async listarMedicosAtivos() {
+    const res = await requisitar('/api/consultas/medicos-ativos', { method: 'GET' })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.medicos || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível carregar os médicos ativos.',
+    }
+  },
+
+  async listarHorariosLivres(medicoId, data) {
+    const query = new URLSearchParams({
+      medicoId: String(medicoId || ''),
+      data: String(data || ''),
+    })
+    const res = await requisitar(`/api/consultas/horarios-livres?${query.toString()}`, {
+      method: 'GET',
+    })
+    if (res.ok) {
+      return { ok: true, horarios: res.dados.horarios || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      horarios: [],
+      mensagem: res.dados.mensagem || 'Não foi possível consultar os horários livres.',
+    }
+  },
+
+  async agendarConsulta(pacienteId, medicoId, dataHora) {
+    const res = await requisitar('/api/consultas', {
+      method: 'POST',
+      body: JSON.stringify({ pacienteId, medicoId, dataHora }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao agendar consulta.',
+    }
+  },
+
+  async listarConsultasFuturasPaciente(pacienteId) {
+    const res = await requisitar(`/api/consultas/paciente/${pacienteId}/futuras`, {
+      method: 'GET',
+    })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.consultas || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível listar as consultas do paciente.',
+    }
+  },
+
+  async cancelarConsulta(consultaId, motivo = '') {
+    const res = await requisitar(`/api/consultas/${consultaId}/cancelar`, {
+      method: 'PUT',
+      body: JSON.stringify({ motivo }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao cancelar consulta.',
+    }
+  },
+}
+
+export const LembreteControllerApi = {
+  async listarLembretesPendentes() {
+    const res = await requisitar('/api/lembretes/pendentes', { method: 'GET' })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.consultas || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível carregar os lembretes pendentes.',
+    }
+  },
+
+  async gerarLinkWhatsApp(consultaId) {
+    const res = await requisitar(`/api/lembretes/${consultaId}/link-whatsapp`, {
+      method: 'GET',
+    })
+    if (res.ok && res.dados.url) {
+      return { ok: true, url: res.dados.url, mensagem: null }
+    }
+    return {
+      ok: false,
+      url: null,
+      mensagem: res.dados.mensagem || 'Consulta não elegível para lembrete',
+    }
+  },
+
+  async confirmarEnvio(consultaId) {
+    const res = await requisitar(`/api/lembretes/${consultaId}/confirmar`, {
+      method: 'PUT',
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao confirmar envio do lembrete.',
+    }
+  },
+}
+
+export const AusenciaControllerApi = {
+  async listarAusenciasFuturas(medicoId) {
+    const res = await requisitar(`/api/ausencias/medico/${medicoId}/futuras`, {
+      method: 'GET',
+    })
+    if (res.ok) {
+      return { ok: true, lista: res.dados.ausencias || [], mensagem: null }
+    }
+    return {
+      ok: false,
+      lista: [],
+      mensagem: res.dados.mensagem || 'Não foi possível carregar as ausências futuras.',
+    }
+  },
+
+  async validarAusencia(medicoId, motivo, dataInicial, dataFinal) {
+    const res = await requisitar('/api/ausencias/validar', {
+      method: 'POST',
+      body: JSON.stringify({ medicoId, motivo, dataInicial, dataFinal }),
+    })
+    if (res.ok && res.dados.valido) {
+      return null
+    }
+    return res.dados.mensagem || 'Dados inválidos para registro de ausência'
+  },
+
+  async registrarAusencia(medicoId, motivo, dataInicial, dataFinal) {
+    const res = await requisitar('/api/ausencias', {
+      method: 'POST',
+      body: JSON.stringify({ medicoId, motivo, dataInicial, dataFinal }),
+    })
+    return {
+      ok: res.ok,
+      mensagem: res.dados.mensagem || 'Erro ao registrar ausência.',
+    }
+  },
+}

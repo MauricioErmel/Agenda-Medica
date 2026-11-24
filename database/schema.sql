@@ -1,5 +1,5 @@
 -- ============================================================================
--- Agenda Médica - Schema do Banco de Dados (Ciclos 1 e 2: CU1 a CU7)
+-- Agenda Médica - Schema do Banco de Dados (Ciclos 1, 2, 3 e 4: UC1 a UC11)
 -- Banco de Dados: MySQL 8.0+
 -- ============================================================================
 
@@ -94,4 +94,38 @@ CREATE TABLE IF NOT EXISTS pacientes (
   criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT uk_pacientes_cpf UNIQUE (cpf)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- Ciclo 3: Consultas (Agendamento e Cancelamento — UC8 e UC9)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS consultas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  paciente_id INT NOT NULL,
+  medico_id INT NOT NULL,
+  data_hora DATETIME NOT NULL,
+  status ENUM('AGENDADA', 'CANCELADA') NOT NULL DEFAULT 'AGENDADA',
+  lembrete ENUM('PENDENTE', 'ENVIADO') NOT NULL DEFAULT 'PENDENTE',
+  motivo_cancelamento VARCHAR(500) NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_consultas_medico_data (medico_id, data_hora, status),
+  INDEX idx_consultas_paciente_data (paciente_id, data_hora, status),
+  CONSTRAINT fk_consultas_paciente FOREIGN KEY (paciente_id) REFERENCES pacientes(id),
+  CONSTRAINT fk_consultas_medico FOREIGN KEY (medico_id) REFERENCES medicos(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- Ciclo 4: Ausências Médicas (UC11 / RN07, RN10)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ausencias (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  medico_id INT NOT NULL,
+  motivo VARCHAR(500) NOT NULL,
+  data_inicial DATE NOT NULL,
+  data_final DATE NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ausencias_medico_periodo (medico_id, data_inicial, data_final),
+  CONSTRAINT fk_ausencias_medico FOREIGN KEY (medico_id) REFERENCES medicos(id),
+  CONSTRAINT ck_ausencias_periodo CHECK (data_final >= data_inicial)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

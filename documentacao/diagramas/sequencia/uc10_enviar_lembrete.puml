@@ -1,0 +1,189 @@
+@startuml
+title Diagrama de Sequência - UC10: Enviar Lembrete de Consulta
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Recepcionista" as Rec
+participant ":LembreteView" as View
+participant ":LembreteController" as Ctrl
+participant "Consulta" as ConsClass <<class>>
+participant "consulta : Consulta" as ConsObj
+participant "ConfiguracaoClinica" as ConfClass <<class>>
+participant "config : ConfiguracaoClinica" as ConfObj
+participant "paciente : Paciente" as PacObj
+participant "medico : Medico" as MedObj
+
+Rec -> View : acionarLembretes()
+activate View
+
+View -> Ctrl : listarLembretesPendentes()
+activate Ctrl
+Ctrl -> ConsClass : listarLembretesPendentes()
+activate ConsClass
+ConsClass -->> Ctrl : consultas : List<Consulta>
+deactivate ConsClass
+Ctrl -->> View : consultas
+deactivate Ctrl
+
+alt consultas vazia (Extensão 1a)
+  View -> View : exibirMensagem("Nenhuma consulta com lembrete pendente", "aviso")
+  activate View
+  deactivate View
+  View -->> Rec : informa "Nenhuma consulta com lembrete pendente"
+  deactivate View
+else há lembretes pendentes (RN09)
+  View -> View : exibirLembretesPendentes(consultas)
+  activate View
+  deactivate View
+  View -->> Rec : exibe consultas futuras Agendadas em ordem cronológica
+  deactivate View
+
+  Rec -> View : selecionarConsulta(consulta)
+  activate View
+
+  View -> Ctrl : gerarLinkWhatsApp(consultaId)
+  activate Ctrl
+
+  Ctrl -> ConsClass : buscarPorId(consultaId)
+  activate ConsClass
+  ConsClass -->> Ctrl : consulta : Consulta
+  deactivate ConsClass
+
+  opt consulta != null
+    Ctrl -> ConsObj : isLembretePendente()
+    activate ConsObj
+    ConsObj -->> Ctrl : pendente : boolean
+    deactivate ConsObj
+  end
+
+  alt consulta == null ou pendente == false (RN09)
+    Ctrl -->> View : null
+  else consulta elegível para lembrete
+    Ctrl -> ConfClass : obter()
+    activate ConfClass
+    ConfClass -->> Ctrl : config : ConfiguracaoClinica
+    deactivate ConfClass
+
+    Ctrl -> ConfObj : getNomeClinica()
+    activate ConfObj
+    ConfObj -->> Ctrl : nomeClinica : String
+    deactivate ConfObj
+
+    Ctrl -> ConfObj : getTelefoneClinica()
+    activate ConfObj
+    ConfObj -->> Ctrl : telefoneClinica : String
+    deactivate ConfObj
+
+    Ctrl -> ConsObj : getPaciente()
+    activate ConsObj
+    ConsObj -->> Ctrl : paciente : Paciente
+    deactivate ConsObj
+
+    Ctrl -> PacObj : getNome()
+    activate PacObj
+    PacObj -->> Ctrl : nomePaciente : String
+    deactivate PacObj
+
+    Ctrl -> PacObj : getTelefone()
+    activate PacObj
+    PacObj -->> Ctrl : telefonePaciente : String
+    deactivate PacObj
+
+    Ctrl -> ConsObj : getMedico()
+    activate ConsObj
+    ConsObj -->> Ctrl : medico : Medico
+    deactivate ConsObj
+
+    Ctrl -> ConsObj : getDataHora()
+    activate ConsObj
+    ConsObj -->> Ctrl : dataHora : DateTime
+    deactivate ConsObj
+
+    Ctrl -> MedObj : getNome()
+    activate MedObj
+    MedObj -->> Ctrl : nomeMedico : String
+    deactivate MedObj
+
+    note over Ctrl
+      Monta a mensagem padrão (RNF04) com nomePaciente,
+      nomeClinica, nomeMedico, dataHora e telefoneClinica,
+      e gera a URL https://wa.me/... com telefonePaciente.
+    end note
+
+    Ctrl -->> View : urlWhatsApp : String
+  end
+  deactivate Ctrl
+
+  alt urlWhatsApp == null
+    View -> View : exibirMensagem("Consulta não elegível para lembrete", "erro")
+    activate View
+    deactivate View
+    View -->> Rec : informa que o lembrete não pode ser enviado
+    deactivate View
+  else urlWhatsApp gerada
+    View -> View : abrirWhatsApp(urlWhatsApp)
+    activate View
+    deactivate View
+    View -> View : solicitarConfirmacaoEnvio(consulta)
+    activate View
+    deactivate View
+    View -->> Rec : abre WhatsApp com mensagem preenchida e solicita confirmação
+    deactivate View
+
+    alt Recepcionista confirma o envio
+      Rec -> View : confirmarEnvio(consultaId)
+      activate View
+
+      View -> Ctrl : confirmarEnvio(consultaId)
+      activate Ctrl
+
+      Ctrl -> ConsClass : buscarPorId(consultaId)
+      activate ConsClass
+      ConsClass -->> Ctrl : consulta : Consulta
+      deactivate ConsClass
+
+      opt consulta != null
+        Ctrl -> ConsObj : isLembretePendente()
+        activate ConsObj
+        ConsObj -->> Ctrl : pendente : boolean
+        deactivate ConsObj
+      end
+
+      alt consulta == null ou pendente == false (RN09)
+        Ctrl -->> View : "Consulta não elegível para lembrete"
+      else consulta elegível
+        Ctrl -> ConsObj : setLembrete(StatusLembrete.ENVIADO)
+        activate ConsObj
+        deactivate ConsObj
+
+        Ctrl -> ConsObj : salvar()
+        activate ConsObj
+        ConsObj -->> Ctrl : true
+        deactivate ConsObj
+
+        Ctrl -->> View : "Lembrete marcado como enviado!"
+      end
+      deactivate Ctrl
+
+      View -> View : exibirMensagem(mensagem, tipo)
+      activate View
+      deactivate View
+      View -->> Rec : confirma envio e retira a consulta da lista
+      deactivate View
+      note over View
+        Volta ao passo 1: chama listarLembretesPendentes()
+        de novo e exibe a lista atualizada.
+      end note
+    else Recepcionista não confirma (Extensão 5a)
+      Rec -> View : cancelar()
+      activate View
+      View -->> Rec : mantém lembrete Pendente e retorna à lista
+      deactivate View
+      note over View
+        Extensão 5a: volta ao passo 1 com
+        listarLembretesPendentes(); o lembrete continua Pendente.
+      end note
+    end
+  end
+end
+@enduml

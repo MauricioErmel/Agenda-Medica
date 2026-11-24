@@ -1,0 +1,41 @@
+@startuml
+title UC9 - Cancelar Consulta
+
+|Recepcionista|
+start
+repeat
+  |Recepcionista|
+  :Informar CPF ou parte do nome\nou desistir;
+  |Sistema|
+  if (Opção escolhida?) then ([buscar])
+  else ([desistir])
+    stop
+  endif
+  :Buscar pacientes;
+  backward:Informar "Paciente não localizado";
+repeat while (Paciente encontrado?) is ([não]) not ([sim])
+:Listar pacientes encontrados\n(nome, data de nascimento, CPF e situação);
+|Recepcionista|
+:Selecionar paciente;
+|Sistema|
+:Listar consultas futuras\nAgendadas do paciente;
+if (Há consultas futuras Agendadas?) then ([sim])
+else ([não])
+  :Informar "Nenhuma consulta para cancelar";
+  stop
+endif
+|Recepcionista|
+:Selecionar consulta;
+|Sistema|
+:Exibir médico, especialidade e data/hora\ne solicitar motivo opcional;
+|Recepcionista|
+:Informar motivo (opcional)\ne confirmar ou desistir;
+|Sistema|
+if (Cancelamento confirmado?) then ([sim])
+else ([não])
+  :Manter consulta inalterada;
+  stop
+endif
+:Alterar consulta para Cancelada,\ngravar motivo (se informado) e confirmar;
+stop
+@enduml

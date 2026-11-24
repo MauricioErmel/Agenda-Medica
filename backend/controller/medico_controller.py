@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from model.consulta import Consulta
 from model.especialidade import Especialidade
 from model.grade_atendimento import GradeAtendimento
 from model.medico import Medico
@@ -15,13 +16,13 @@ _UFS_BRASIL = {
 
 
 class MedicoController:
-    """Controlador de gestão de médicos — CU4 e CU5."""
+    """Controlador de gestão de médicos — UC4 e UC5."""
 
     def _validar_estrutura_grades(self, grades: List[GradeAtendimento]) -> bool:
         if not isinstance(grades, list):
             return False
 
-        # Loop conforme CU4 e CU5: pergunta a cada grade se o horário é válido
+        # Loop conforme UC4 e UC5: pergunta a cada grade se o horário é válido
         todos_horarios_validos = True
         dias_vistos = set()
         for grade in grades:
@@ -39,6 +40,21 @@ class MedicoController:
         if len(grades) == 0 or len(grades) > 7:
             return False
         return todos_horarios_validos
+
+    @staticmethod
+    def _grades_alteradas(
+        grades_novas: List[GradeAtendimento],
+        grades_atuais: List[GradeAtendimento],
+    ) -> bool:
+        assinatura_novas = sorted(
+            (g.getDiaSemana().value if g.getDiaSemana() else "", g.getHoraInicial(), g.getHoraFinal())
+            for g in grades_novas
+        )
+        assinatura_atuais = sorted(
+            (g.getDiaSemana().value if g.getDiaSemana() else "", g.getHoraInicial(), g.getHoraFinal())
+            for g in grades_atuais
+        )
+        return assinatura_novas != assinatura_atuais
 
     def listarEspecialidades(self) -> List[Especialidade]:
         return Especialidade.listarTodas()
@@ -128,8 +144,15 @@ class MedicoController:
         if Medico.existeCrmUf(crm_limpo, uf_limpa, id):
             return "CRM já cadastrado no sistema"
 
-        # Pendência planejada (Ciclo 3): validar RN08 (consultas futuras Agendadas)
-        # ao alterar grade ou inativar médico.
+        medico = Medico.buscarPorId(id)
+        if medico is None:
+            return "Dados inválidos ou grade incoerente"
+
+        gradesAtuais = medico.getGrades()
+        if self._grades_alteradas(grades, gradesAtuais) or situacao == Situacao.INATIVO:
+            if Consulta.existeFuturaPorMedico(id):
+                return "Cancele antes as consultas futuras do médico (UC9)"
+
         return None
 
     def editarMedico(

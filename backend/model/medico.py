@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Dict, List, Optional
 
 from database import Database
@@ -69,8 +70,30 @@ class Medico:
     def setSituacao(self, situacao: Situacao) -> None:
         self.__situacao = situacao
 
+    _DIA_SEMANA_POR_WEEKDAY: Dict[int, DiaSemana] = {
+        0: DiaSemana.SEGUNDA,
+        1: DiaSemana.TERCA,
+        2: DiaSemana.QUARTA,
+        3: DiaSemana.QUINTA,
+        4: DiaSemana.SEXTA,
+        5: DiaSemana.SABADO,
+        6: DiaSemana.DOMINGO,
+    }
+
     def getGrades(self) -> List[GradeAtendimento]:
         return list(self.__grades)
+
+    def getGradeDoDia(self, data: date) -> Optional[GradeAtendimento]:
+        if data is None:
+            return None
+        data_ref = data.date() if isinstance(data, datetime) else data
+        if not isinstance(data_ref, date):
+            return None
+        dia_alvo = self._DIA_SEMANA_POR_WEEKDAY.get(data_ref.weekday())
+        for grade in self.__grades:
+            if grade.getDiaSemana() == dia_alvo:
+                return grade
+        return None
 
     def setGrades(self, grades: List[GradeAtendimento]) -> None:
         if not grades or len(grades) > 7:
@@ -182,6 +205,33 @@ class Medico:
                 INNER JOIN especialidades e ON e.id = m.especialidade_id
                 ORDER BY m.nome ASC
                 """
+            )
+            linhas = cursor.fetchall()
+            medico_ids = [int(linha["id"]) for linha in linhas]
+            grades_por_medico = Medico._buscar_grades_por_medicos(cursor, medico_ids)
+            cursor.close()
+            return [
+                Medico._montar_medico(linha, grades_por_medico.get(int(linha["id"]), []))
+                for linha in linhas
+            ]
+        finally:
+            conexao.close()
+
+    @staticmethod
+    def listarAtivos() -> List[Medico]:
+        conexao = Database.get_connection()
+        try:
+            cursor = conexao.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT m.id, m.nome, m.crm, m.uf_crm, m.especialidade_id,
+                       e.nome AS especialidade_nome, m.situacao
+                FROM medicos m
+                INNER JOIN especialidades e ON e.id = m.especialidade_id
+                WHERE m.situacao = %s
+                ORDER BY m.nome ASC
+                """,
+                (Situacao.ATIVO.value,),
             )
             linhas = cursor.fetchall()
             medico_ids = [int(linha["id"]) for linha in linhas]

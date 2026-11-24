@@ -1,0 +1,153 @@
+@startuml
+title Diagrama de Sequência - UC7: Consultar e Editar Paciente
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Recepcionista" as Rec
+participant ":PacienteView" as View
+participant ":PacienteController" as Ctrl
+participant "Paciente" as PacClass <<class>>
+participant "paciente : Paciente" as PacObj
+participant "Consulta" as ConsClass <<class>>
+
+Rec -> View : acionarConsultaPaciente()
+activate View
+View -->> Rec : solicita CPF ou parte do nome
+deactivate View
+
+Rec -> View : buscarPacientes(termo)
+activate View
+
+View -> Ctrl : consultarPacientes(termo)
+activate Ctrl
+Ctrl -> PacClass : buscarPorFiltro(termo)
+activate PacClass
+PacClass -->> Ctrl : lista : List<Paciente>
+deactivate PacClass
+Ctrl -->> View : lista
+deactivate Ctrl
+
+alt lista vazia
+  View -> View : exibirMensagem("Paciente não localizado", "aviso")
+  activate View
+  deactivate View
+  View -->> Rec : informa "Paciente não localizado"
+  deactivate View
+else pacientes encontrados
+  View -> View : exibirLista(lista)
+  activate View
+  deactivate View
+  View -->> Rec : lista pacientes (nome, nascimento, CPF e situação)
+  deactivate View
+
+  Rec -> View : selecionarPaciente(paciente)
+  activate View
+  View -> View : exibirFormulario(paciente)
+  activate View
+  deactivate View
+  View -->> Rec : exibe dados com CPF bloqueado (RN01)
+  deactivate View
+
+  alt Recepcionista apenas consulta os dados
+    Rec -> View : cancelar()
+    activate View
+    View -->> Rec : encerra sem alterações
+    deactivate View
+  else Recepcionista altera dados e/ou situação e solicita salvar
+    Rec -> View : enviarEdicao(id, nome, dataNascimento, sexo, telefone, situacao)
+    activate View
+
+    View -> Ctrl : validarPaciente(id, nome, dataNascimento, sexo, telefone, situacao)
+    activate Ctrl
+    alt campos obrigatórios vazios ou dataNascimento futura
+      Ctrl -->> View : "Dados inválidos"
+    else dados válidos
+      opt situacao == INATIVO
+        Ctrl -> ConsClass : listarFuturasAgendadasPorPaciente(id)
+        activate ConsClass
+        ConsClass -->> Ctrl : futuras : List<Consulta>
+        deactivate ConsClass
+      end
+
+      alt situacao == INATIVO e futuras não vazia (RN08)
+        Ctrl -->> View : "Cancele antes as consultas futuras do paciente (UC9)"
+      else ativo ou sem consultas futuras
+        Ctrl -->> View : null (sem erros)
+      end
+    end
+    deactivate Ctrl
+
+    alt validação retornou erro
+      View -> View : exibirMensagem(mensagem, "erro")
+      activate View
+      deactivate View
+      View -->> Rec : sinaliza erro mantendo dados
+      deactivate View
+
+    else validação ok
+      View -> View : solicitarConfirmacao()
+      activate View
+      deactivate View
+      View -->> Rec : solicita confirmação da alteração
+      deactivate View
+
+      alt Recepcionista confirma
+        Rec -> View : confirmarEdicao(id, nome, dataNascimento, sexo, telefone, situacao)
+        activate View
+
+        View -> Ctrl : editarPaciente(id, nome, dataNascimento, sexo, telefone, situacao)
+        activate Ctrl
+        note right of Ctrl
+          Revalida com validarPaciente(...)
+          antes de gravar (proteção).
+        end note
+
+        Ctrl -> PacClass : buscarPorId(id)
+        activate PacClass
+        PacClass -->> Ctrl : paciente : Paciente
+        deactivate PacClass
+
+        Ctrl -> PacObj : setNome(nome)
+        activate PacObj
+        deactivate PacObj
+
+        Ctrl -> PacObj : setDataNascimento(dataNascimento)
+        activate PacObj
+        deactivate PacObj
+
+        Ctrl -> PacObj : setSexo(sexo)
+        activate PacObj
+        deactivate PacObj
+
+        Ctrl -> PacObj : setTelefone(telefone)
+        activate PacObj
+        deactivate PacObj
+
+        Ctrl -> PacObj : setSituacao(situacao)
+        activate PacObj
+        deactivate PacObj
+
+        Ctrl -> PacObj : salvar()
+        activate PacObj
+        PacObj -->> Ctrl : true
+        deactivate PacObj
+
+        Ctrl -->> View : "Dados do paciente atualizados com sucesso!"
+        deactivate Ctrl
+
+        View -> View : exibirMensagem(mensagem, "sucesso")
+        activate View
+        deactivate View
+        View -->> Rec : exibe confirmação
+        deactivate View
+
+      else Recepcionista desiste na confirmação
+        Rec -> View : cancelar()
+        activate View
+        View -->> Rec : descarta alterações e encerra
+        deactivate View
+      end
+    end
+  end
+end
+@enduml

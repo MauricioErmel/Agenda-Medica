@@ -1,0 +1,296 @@
+@startuml
+title Diagrama de Sequência - UC8: Agendar Consulta
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+skinparam defaultFontSize 11
+
+actor "Recepcionista" as Rec
+participant ":ConsultaView" as View
+participant ":PacienteController" as PacCtrl
+participant ":ConsultaController" as Ctrl
+participant "Paciente" as PacClass <<class>>
+participant "paciente : Paciente" as PacObj
+participant "Medico" as MedClass <<class>>
+participant "medico : Medico" as MedObj
+participant "especialidade : Especialidade" as EspObj
+participant "grade : GradeAtendimento" as Grade
+participant "Ausencia" as AusClass <<class>>
+participant "ConfiguracaoClinica" as ConfClass <<class>>
+participant "config : ConfiguracaoClinica" as ConfObj
+participant "Consulta" as ConsClass <<class>>
+
+Rec -> View : acionarAgendamento()
+activate View
+View -->> Rec : solicita CPF ou parte do nome do paciente
+deactivate View
+
+Rec -> View : buscarPacientes(termo)
+activate View
+View -> PacCtrl : consultarPacientes(termo)
+activate PacCtrl
+PacCtrl -> PacClass : buscarPorFiltro(termo)
+activate PacClass
+PacClass -->> PacCtrl : lista : List<Paciente>
+deactivate PacClass
+PacCtrl -->> View : lista
+deactivate PacCtrl
+
+alt lista vazia
+  View -> View : exibirMensagem("Paciente não localizado", "aviso")
+  activate View
+  deactivate View
+  View -->> Rec : informa "Paciente não localizado"
+  deactivate View
+else pacientes encontrados
+  View -> View : exibirPacientes(lista)
+  activate View
+  deactivate View
+  View -->> Rec : lista pacientes (nome, nascimento, CPF e situação)
+  deactivate View
+
+  Rec -> View : selecionarPaciente(paciente)
+  activate View
+  View -> Ctrl : verificarPaciente(pacienteId)
+  activate Ctrl
+  Ctrl -> PacClass : buscarPorId(pacienteId)
+  activate PacClass
+  PacClass -->> Ctrl : paciente : Paciente
+  deactivate PacClass
+  opt paciente != null
+    Ctrl -> PacObj : getSituacao()
+    activate PacObj
+    PacObj -->> Ctrl : situacao : Situacao
+    deactivate PacObj
+  end
+  alt paciente == null ou situacao == INATIVO (RN08)
+    Ctrl -->> View : "Pacientes inativos não podem ser agendados"
+  else situacao == ATIVO
+    Ctrl -->> View : null (sem erros)
+  end
+  deactivate Ctrl
+
+  alt paciente inativo
+    View -> View : exibirMensagem(mensagem, "erro")
+    activate View
+    deactivate View
+    View -->> Rec : informa que paciente inativo não pode ser agendado
+    deactivate View
+  else paciente ativo
+    View -> Ctrl : listarMedicosAtivos()
+    activate Ctrl
+    Ctrl -> MedClass : listarAtivos()
+    activate MedClass
+    MedClass -->> Ctrl : medicos : List<Medico>
+    deactivate MedClass
+    Ctrl -->> View : medicos
+    deactivate Ctrl
+    View -> View : exibirMedicos(medicos)
+    activate View
+    deactivate View
+    View -->> Rec : solicita médico Ativo e data
+    deactivate View
+
+    alt Recepcionista seleciona médico e data
+      Rec -> View : selecionarMedicoData(medicoId, data)
+      activate View
+
+      View -> Ctrl : listarHorariosLivres(medicoId, data)
+      activate Ctrl
+
+      Ctrl -> MedClass : buscarPorId(medicoId)
+      activate MedClass
+      MedClass -->> Ctrl : medico : Medico
+      deactivate MedClass
+
+      opt medico != null
+        Ctrl -> MedObj : getSituacao()
+        activate MedObj
+        MedObj -->> Ctrl : situacaoMed : Situacao
+        deactivate MedObj
+      end
+
+      alt medico == null ou situacaoMed == INATIVO ou data passada
+        Ctrl -->> View : lista vazia
+      else médico Ativo e data válida
+        Ctrl -> AusClass : existeAusenciaNaData(medicoId, data)
+        activate AusClass
+        AusClass -->> Ctrl : ausente : boolean
+        deactivate AusClass
+
+        alt ausente == true (RN07, RN10)
+          Ctrl -->> View : lista vazia
+        else médico sem ausência na data
+          Ctrl -> MedObj : getGradeDoDia(data)
+          activate MedObj
+          MedObj -->> Ctrl : grade : GradeAtendimento
+          deactivate MedObj
+
+          opt grade != null
+            Ctrl -> ConfClass : obter()
+            activate ConfClass
+            ConfClass -->> Ctrl : config : ConfiguracaoClinica
+            deactivate ConfClass
+
+            Ctrl -> ConfObj : getDuracaoConsultaMinutos()
+            activate ConfObj
+            ConfObj -->> Ctrl : duracaoMinutos : int
+            deactivate ConfObj
+
+            Ctrl -> Grade : gerarHorarios(duracaoMinutos)
+            activate Grade
+            Grade -->> Ctrl : horariosGrade : List<Time>
+            deactivate Grade
+
+            Ctrl -> ConsClass : listarHorariosOcupados(medicoId, data)
+            activate ConsClass
+            ConsClass -->> Ctrl : ocupados : List<Time>
+            deactivate ConsClass
+
+            note over Ctrl
+              Mantém só horários futuros (RN06)
+              que não estão em ocupados (RN04, RN07).
+            end note
+          end
+
+          Ctrl -->> View : horarios : List<Time>
+        end
+      end
+      deactivate Ctrl
+
+      alt horarios vazia
+        View -> View : exibirMensagem("Nenhum horário disponível", "aviso")
+        activate View
+        deactivate View
+        View -->> Rec : informa "Nenhum horário disponível"
+        deactivate View
+      else há horários livres
+        View -> View : exibirHorariosLivres(horarios)
+        activate View
+        deactivate View
+        View -->> Rec : exibe horários livres e solicita escolha
+        deactivate View
+
+        alt Recepcionista seleciona horário e confirma
+          Rec -> View : confirmarAgendamento(pacienteId, medicoId, dataHora)
+          activate View
+
+          View -> Ctrl : agendarConsulta(pacienteId, medicoId, dataHora)
+          activate Ctrl
+
+          Ctrl -> Ctrl : erroPaciente = verificarPaciente(pacienteId)
+          activate Ctrl
+          deactivate Ctrl
+
+          alt erroPaciente != null (RN08)
+            Ctrl -->> View : "Pacientes inativos não podem ser agendados"
+          else paciente Ativo
+            Ctrl -> Ctrl : horariosLivres = listarHorariosLivres(medicoId, data)
+            activate Ctrl
+            deactivate Ctrl
+
+            alt horário fora de horariosLivres (RN04, RN06, RN07)
+              Ctrl -->> View : "Horário indisponível"
+            else horário livre na grade do médico
+              Ctrl -> ConsClass : existeConflitoPaciente(pacienteId, dataHora)
+              activate ConsClass
+              ConsClass -->> Ctrl : conflitoPaciente : boolean
+              deactivate ConsClass
+
+              alt conflitoPaciente == true (RN05)
+                Ctrl -->> View : "Paciente já possui consulta agendada neste horário"
+              else sem conflito para o paciente
+                Ctrl -> PacClass : buscarPorId(pacienteId)
+                activate PacClass
+                PacClass -->> Ctrl : paciente : Paciente
+                deactivate PacClass
+
+                Ctrl -> MedClass : buscarPorId(medicoId)
+                activate MedClass
+                MedClass -->> Ctrl : medico : Medico
+                deactivate MedClass
+
+                create "novaConsulta : Consulta" as NovaCons
+                Ctrl -->> NovaCons : <<create>>
+
+                Ctrl -> NovaCons : setPaciente(paciente)
+                activate NovaCons
+                deactivate NovaCons
+
+                Ctrl -> NovaCons : setMedico(medico)
+                activate NovaCons
+                deactivate NovaCons
+
+                Ctrl -> NovaCons : setDataHora(dataHora)
+                activate NovaCons
+                deactivate NovaCons
+
+                Ctrl -> NovaCons : setStatus(StatusConsulta.AGENDADA)
+                activate NovaCons
+                deactivate NovaCons
+
+                Ctrl -> NovaCons : setLembrete(StatusLembrete.PENDENTE)
+                activate NovaCons
+                deactivate NovaCons
+
+                Ctrl -> NovaCons : salvar()
+                activate NovaCons
+                NovaCons -->> Ctrl : true
+                deactivate NovaCons
+
+                Ctrl -> MedObj : getNome()
+                activate MedObj
+                MedObj -->> Ctrl : nomeMedico : String
+                deactivate MedObj
+
+                Ctrl -> MedObj : getEspecialidade()
+                activate MedObj
+                MedObj -->> Ctrl : especialidade : Especialidade
+                deactivate MedObj
+
+                Ctrl -> EspObj : getNome()
+                activate EspObj
+                EspObj -->> Ctrl : nomeEspecialidade : String
+                deactivate EspObj
+
+                Ctrl -->> View : "Consulta agendada com sucesso" (data, hora, nomeMedico e nomeEspecialidade)
+              end
+            end
+          end
+          deactivate Ctrl
+
+          alt agendamento realizado com sucesso
+            View -> View : exibirMensagem(mensagem, "sucesso")
+            activate View
+            deactivate View
+            View -->> Rec : exibe confirmação (data, hora, médico e especialidade)
+            deactivate View
+          else conflito ou horário indisponível
+            View -> View : exibirMensagem(mensagem, "erro")
+            activate View
+            deactivate View
+            View -> Ctrl : listarHorariosLivres(medicoId, data)
+            activate Ctrl
+            Ctrl -->> View : horarios : List<Time>
+            deactivate Ctrl
+            View -> View : exibirHorariosLivres(horarios)
+            activate View
+            deactivate View
+            View -->> Rec : informa o problema e lista novamente os horários livres
+            deactivate View
+          end
+        else Recepcionista desiste antes de confirmar
+          Rec -> View : cancelar()
+          activate View
+          View -->> Rec : não altera a agenda e encerra
+          deactivate View
+        end
+      end
+    else Recepcionista desiste antes de selecionar
+      Rec -> View : cancelar()
+      activate View
+      View -->> Rec : encerra sem agendar
+      deactivate View
+    end
+  end
+end
+@enduml

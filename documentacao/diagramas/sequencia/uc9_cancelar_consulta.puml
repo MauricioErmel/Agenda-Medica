@@ -1,0 +1,135 @@
+@startuml
+title Diagrama de Sequência - UC9: Cancelar Consulta
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Recepcionista" as Rec
+participant ":ConsultaView" as View
+participant ":PacienteController" as PacCtrl
+participant ":ConsultaController" as Ctrl
+participant "Paciente" as PacClass <<class>>
+participant "Consulta" as ConsClass <<class>>
+participant "consulta : Consulta" as ConsObj
+
+Rec -> View : acionarCancelamento()
+activate View
+View -->> Rec : solicita CPF ou parte do nome do paciente
+deactivate View
+
+Rec -> View : buscarPacientes(termo)
+activate View
+View -> PacCtrl : consultarPacientes(termo)
+activate PacCtrl
+PacCtrl -> PacClass : buscarPorFiltro(termo)
+activate PacClass
+PacClass -->> PacCtrl : lista : List<Paciente>
+deactivate PacClass
+PacCtrl -->> View : lista
+deactivate PacCtrl
+
+alt lista vazia
+  View -> View : exibirMensagem("Paciente não localizado", "aviso")
+  activate View
+  deactivate View
+  View -->> Rec : informa "Paciente não localizado"
+  deactivate View
+else pacientes encontrados
+  View -> View : exibirPacientes(lista)
+  activate View
+  deactivate View
+  View -->> Rec : lista pacientes (nome, nascimento, CPF e situação)
+  deactivate View
+
+  Rec -> View : selecionarPaciente(paciente)
+  activate View
+
+  View -> Ctrl : listarConsultasFuturasPaciente(pacienteId)
+  activate Ctrl
+  Ctrl -> ConsClass : listarFuturasAgendadasPorPaciente(pacienteId)
+  activate ConsClass
+  ConsClass -->> Ctrl : consultas : List<Consulta>
+  deactivate ConsClass
+  Ctrl -->> View : consultas
+  deactivate Ctrl
+
+  alt consultas vazia
+    View -> View : exibirMensagem("Nenhuma consulta para cancelar", "aviso")
+    activate View
+    deactivate View
+    View -->> Rec : informa "Nenhuma consulta para cancelar"
+    deactivate View
+  else há consultas futuras Agendadas
+    View -> View : exibirConsultasPaciente(consultas)
+    activate View
+    deactivate View
+    View -->> Rec : lista consultas futuras Agendadas do paciente
+    deactivate View
+
+    Rec -> View : selecionarConsulta(consulta)
+    activate View
+    View -> View : solicitarMotivoCancelamento(consulta)
+    activate View
+    deactivate View
+    View -->> Rec : exibe médico, especialidade, data/hora e solicita motivo opcional
+    deactivate View
+
+    alt Recepcionista informa motivo (opcional) e confirma
+      Rec -> View : confirmarCancelamento(consultaId, motivo)
+      activate View
+
+      View -> Ctrl : cancelarConsulta(consultaId, motivo)
+      activate Ctrl
+
+      Ctrl -> ConsClass : buscarPorId(consultaId)
+      activate ConsClass
+      ConsClass -->> Ctrl : consulta : Consulta
+      deactivate ConsClass
+
+      opt consulta != null
+        Ctrl -> ConsObj : getStatus()
+        activate ConsObj
+        ConsObj -->> Ctrl : status : StatusConsulta
+        deactivate ConsObj
+
+        Ctrl -> ConsObj : getDataHora()
+        activate ConsObj
+        ConsObj -->> Ctrl : dataHora : DateTime
+        deactivate ConsObj
+      end
+
+      alt consulta == null ou status != AGENDADA ou dataHora <= agora (RN03, RN06)
+        Ctrl -->> View : "Consulta não pode ser cancelada"
+      else consulta futura Agendada
+        Ctrl -> ConsObj : setStatus(StatusConsulta.CANCELADA)
+        activate ConsObj
+        deactivate ConsObj
+
+        opt motivo informado
+          Ctrl -> ConsObj : setMotivoCancelamento(motivo)
+          activate ConsObj
+          deactivate ConsObj
+        end
+
+        Ctrl -> ConsObj : salvar()
+        activate ConsObj
+        ConsObj -->> Ctrl : true
+        deactivate ConsObj
+
+        Ctrl -->> View : "Consulta cancelada com sucesso!"
+      end
+      deactivate Ctrl
+
+      View -> View : exibirMensagem(mensagem, tipo)
+      activate View
+      deactivate View
+      View -->> Rec : exibe confirmação ou informa o problema
+      deactivate View
+    else Recepcionista desiste antes de confirmar
+      Rec -> View : cancelar()
+      activate View
+      View -->> Rec : mantém consulta inalterada e encerra
+      deactivate View
+    end
+  end
+end
+@enduml

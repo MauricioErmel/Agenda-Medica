@@ -5,7 +5,7 @@ from model.usuario import Usuario
 
 
 class RecepcionistaController:
-    """Controlador de gestão de recepcionistas — CU2 e CU3."""
+    """Controlador de gestão de recepcionistas — UC2 e UC3."""
 
     def cadastrarRecepcionista(self, nome: str, login: str, senha: str) -> str:
         nome_limpo = (nome or "").strip()

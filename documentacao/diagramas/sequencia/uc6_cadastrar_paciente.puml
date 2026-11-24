@@ -1,0 +1,97 @@
+@startuml
+title Diagrama de Sequência - UC6: Cadastrar Paciente
+skinparam style strictuml
+skinparam sequenceMessageAlign center
+
+actor "Recepcionista" as Rec
+participant ":PacienteView" as View
+participant ":PacienteController" as Ctrl
+participant "Paciente" as PacClass <<class>>
+participant "existente : Paciente" as PacExist
+
+Rec -> View : acionarCadastroPaciente()
+activate View
+View -> View : exibirFormulario(null)
+activate View
+deactivate View
+View -->> Rec : solicita CPF, nome, data de nascimento, sexo e telefone
+deactivate View
+
+alt Recepcionista informa dados e solicita salvar
+  Rec -> View : enviarCadastro(cpf, nome, dataNascimento, sexo, telefone)
+  activate View
+
+  View -> Ctrl : cadastrarPaciente(cpf, nome, dataNascimento, sexo, telefone)
+  activate Ctrl
+
+  alt campos obrigatórios vazios, CPF inválido ou dataNascimento futura
+    Ctrl -->> View : "Dados inválidos"
+  else dados válidos
+    Ctrl -> PacClass : buscarPorCpf(cpf)
+    activate PacClass
+    PacClass -->> Ctrl : existente : Paciente
+    deactivate PacClass
+
+    alt existente != null (RN01)
+      Ctrl -> PacExist : getNome()
+      activate PacExist
+      PacExist -->> Ctrl : nomeExistente : String
+      deactivate PacExist
+
+      Ctrl -> PacExist : getSituacao()
+      activate PacExist
+      PacExist -->> Ctrl : situacaoExistente : Situacao
+      deactivate PacExist
+
+      Ctrl -->> View : "CPF já cadastrado no sistema: <nomeExistente> (<situacaoExistente>)"
+    else existente == null
+      create "novoPaciente : Paciente" as NovoPac
+      Ctrl -->> NovoPac : <<create>>
+
+      Ctrl -> NovoPac : setCpf(cpf)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : setNome(nome)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : setDataNascimento(dataNascimento)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : setSexo(sexo)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : setTelefone(telefone)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : setSituacao(Situacao.ATIVO)
+      activate NovoPac
+      deactivate NovoPac
+
+      Ctrl -> NovoPac : salvar()
+      activate NovoPac
+      NovoPac -->> Ctrl : true
+      deactivate NovoPac
+
+      Ctrl -->> View : "Paciente cadastrado com sucesso!"
+    end
+  end
+  deactivate Ctrl
+
+  View -> View : exibirMensagem(mensagem, tipo)
+  activate View
+  deactivate View
+  View -->> Rec : exibe confirmação ou sinaliza erro mantendo dados
+  deactivate View
+
+else Recepcionista desiste antes de salvar
+  Rec -> View : cancelar()
+  activate View
+  View -->> Rec : descarta dados e encerra
+  deactivate View
+end
+@enduml

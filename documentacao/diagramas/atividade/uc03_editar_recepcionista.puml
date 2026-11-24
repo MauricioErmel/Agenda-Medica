@@ -1,0 +1,26 @@
+@startuml
+title UC3 - Editar Recepcionista
+
+|Administrador|
+start
+|Sistema|
+:Listar Recepcionistas (nome e login);
+|Administrador|
+:Selecionar Recepcionista;
+|Sistema|
+:Exibir dados atuais;
+repeat
+  |Administrador|
+  :Alterar nome e/ou informar nova senha\ne escolher salvar ou desistir;
+  |Sistema|
+  if (Opção escolhida?) then ([salvar])
+  else ([desistir])
+    :Descartar alterações;
+    stop
+  endif
+  :Validar campos obrigatórios;
+  backward:Sinalizar campos\n(mantendo os dados);
+repeat while (Dados válidos?) is ([não]) not ([sim])
+:Gravar alterações e confirmar atualização;
+stop
+@enduml

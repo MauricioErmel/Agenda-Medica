@@ -11,7 +11,7 @@ const carregandoBusca = ref(false)
 const salvando = ref(false)
 const modalConfirmacaoAberto = ref(false)
 
-// Campos do formulário (mantidos em caso de erro conforme CU6 e CU7)
+// Campos do formulário (mantidos em caso de erro conforme UC6 e UC7)
 const formId = ref(null)
 const formCpf = ref('')
 const formNome = ref('')
@@ -62,7 +62,7 @@ async function atualizarConsultaAtual() {
   }
 }
 
-// Métodos alinhados ao Diagrama de Classes (v2) e Diagramas de Sequência (CU6 e CU7)
+// Métodos alinhados ao Diagrama de Classes (v2) e Diagramas de Sequência (UC6 e UC7)
 function exibirMensagem(mensagem, tipo = 'info') {
   mensagemTexto.value = mensagem
   mensagemTipo.value = tipo
@@ -355,7 +355,7 @@ defineExpose({
       <button type="button" class="btn btn-ghost btn-xs" @click="limparMensagem()">Fechar</button>
     </div>
 
-    <!-- Modo Consulta (CU7 - passos 1 a 3) -->
+    <!-- Modo Consulta (UC7 - passos 1 a 3) -->
     <div v-if="modo === 'consulta'" class="card bg-base-100 shadow-sm border border-base-300">
       <div class="card-body p-6 space-y-5">
         <form class="flex flex-col sm:flex-row gap-3" @submit.prevent="buscarPacientes(termoBusca)">
@@ -428,7 +428,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Modo Formulário (CU6: Cadastro | CU7: Consulta e Edição) -->
+    <!-- Modo Formulário (UC6: Cadastro | UC7: Consulta e Edição) -->
     <div v-else class="card bg-base-100 shadow-sm border border-base-300 max-w-2xl">
       <div class="card-body p-6 sm:p-8">
         <div class="mb-4">
@@ -558,7 +558,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Modal de Confirmação da Edição (CU7 - passos 7 e 8) -->
+    <!-- Modal de Confirmação da Edição (UC7 - passos 7 e 8) -->
     <dialog class="modal" :class="{ 'modal-open': modalConfirmacaoAberto }">
       <div class="modal-box">
         <h3 class="text-lg font-bold">Confirmar alteração do paciente</h3>

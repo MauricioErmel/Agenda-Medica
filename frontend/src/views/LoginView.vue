@@ -19,7 +19,7 @@ const carregando = ref(false)
 const mensagemErro = ref('')
 let usuarioAutenticado = null
 
-// Métodos alinhados ao Diagrama de Classes (v1) e Diagrama de Sequência (CU1)
+// Métodos alinhados ao Diagrama de Classes (v1) e Diagrama de Sequência (UC1)
 function abrirSistema() {
   exibirFormulario()
 }

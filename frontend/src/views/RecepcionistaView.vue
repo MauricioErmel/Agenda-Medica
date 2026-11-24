@@ -9,7 +9,7 @@ const filtroBusca = ref('')
 const carregandoLista = ref(false)
 const salvando = ref(false)
 
-// Campos do formulário (mantidos em caso de erro conforme CU2 e CU3)
+// Campos do formulário (mantidos em caso de erro conforme UC2 e UC3)
 const formId = ref(null)
 const formNome = ref('')
 const formLogin = ref('')
@@ -34,7 +34,7 @@ function limparMensagem() {
   mensagemTexto.value = ''
 }
 
-// Métodos alinhados ao Diagrama de Classes (v1) e Diagramas de Sequência (CU2 e CU3)
+// Métodos alinhados ao Diagrama de Classes (v1) e Diagramas de Sequência (UC2 e UC3)
 function exibirMensagem(mensagem, tipo = 'info') {
   mensagemTexto.value = mensagem
   mensagemTipo.value = tipo
@@ -231,7 +231,7 @@ defineExpose({
       <button type="button" class="btn btn-ghost btn-xs" @click="limparMensagem()">Fechar</button>
     </div>
 
-    <!-- Modo Lista (CU3 - passo 1 e 2) -->
+    <!-- Modo Lista (UC3 - passo 1 e 2) -->
     <div v-if="modo === 'lista'" class="card bg-base-100 shadow-sm border border-base-300">
       <div class="card-body p-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -306,7 +306,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Modo Formulário (CU2: Cadastro | CU3: Edição) -->
+    <!-- Modo Formulário (UC2: Cadastro | UC3: Edição) -->
     <div v-else class="card bg-base-100 shadow-sm border border-base-300 max-w-2xl">
       <div class="card-body p-6 sm:p-8">
         <div class="mb-4">

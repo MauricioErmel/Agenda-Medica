@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import time, timedelta
-from typing import Optional
+from datetime import date, datetime, time, timedelta
+from typing import List, Optional
 
 from model.dia_semana import DiaSemana
 
@@ -47,6 +47,27 @@ class GradeAtendimento:
         ):
             return False
         return self.__horaFinal > self.__horaInicial
+
+    def gerarHorarios(self, duracaoMinutos: int) -> List[time]:
+        if (
+            not self.isHorarioValido()
+            or not isinstance(duracaoMinutos, int)
+            or isinstance(duracaoMinutos, bool)
+            or duracaoMinutos <= 0
+        ):
+            return []
+
+        horarios: List[time] = []
+        base = date(2000, 1, 1)
+        atual = datetime.combine(base, self.__horaInicial)
+        fim = datetime.combine(base, self.__horaFinal)
+        passo = timedelta(minutes=duracaoMinutos)
+
+        while atual + passo <= fim:
+            horarios.append(atual.time())
+            atual += passo
+
+        return horarios
 
     @staticmethod
     def _converter_horario(valor: object) -> Optional[time]:

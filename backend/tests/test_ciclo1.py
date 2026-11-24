@@ -1,4 +1,4 @@
-"""Testes unitários do Ciclo 1 (CU1, CU2, CU3) sem dependência de conexão real ao MySQL."""
+"""Testes unitários do Ciclo 1 (UC1, UC2, UC3) sem dependência de conexão real ao MySQL."""
 
 import sys
 import unittest

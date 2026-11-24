@@ -1,5 +1,7 @@
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def _carregar_env() -> None:
@@ -33,3 +35,13 @@ CLINICA_NOME = os.getenv("CLINICA_NOME", "Clínica Vida Saudável")
 CLINICA_TELEFONE = os.getenv("CLINICA_TELEFONE", "(51) 3333-4444")
 CONSULTA_DURACAO_MINUTOS = int(os.getenv("CONSULTA_DURACAO_MINUTOS", "30"))
 TIMEZONE = os.getenv("TIMEZONE", "America/Sao_Paulo")
+
+
+def agora_clinica() -> datetime:
+    """Data e hora atuais no fuso da clínica (RNF03), sem tzinfo."""
+    try:
+        return datetime.now(ZoneInfo(TIMEZONE)).replace(tzinfo=None)
+    except ZoneInfoNotFoundError:
+        if TIMEZONE == "America/Sao_Paulo":
+            return datetime.now(timezone(timedelta(hours=-3))).replace(tzinfo=None)
+        return datetime.now()
